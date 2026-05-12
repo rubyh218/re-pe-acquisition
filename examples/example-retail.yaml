@@ -1,0 +1,170 @@
+# example-retail.yaml -- grocery-anchored neighborhood center.
+# Pattern: ~125,000 SF center; ~55% anchor (Kroger), 45% inline shops.
+# Anchor on long-dated NNN with percentage rent over breakpoint.
+# Inline mix of NNN and BYS, several rolling during hold.
+
+deal_id: pinecrest_commons
+deal_name: Pinecrest Commons
+sponsor: Acquirer
+
+property:
+  name: Pinecrest Commons
+  address: 2400 Pinecrest Boulevard, Charlotte, NC 28226
+  submarket: South Charlotte
+  year_built: 2007
+  asset_class: retail
+  total_rba: 125000
+  general_vacancy_pct: 0.04
+  rent_roll:
+    # --- Anchor ---
+    - tenant: Kroger
+      suite: "Anchor"
+      sf: 68000
+      base_rent_psf: 12.50
+      lease_type: NNN
+      lease_start: 2017-09-01
+      lease_end: 2032-08-31          # 15-yr base, 6 yrs remaining + opt
+      escalation_pct: 0.00           # flat in primary term (typical grocery anchor)
+      free_rent_remaining_mo: 0
+      pct_rent_rate: 0.0125          # 1.25% over natural breakpoint
+      sales_psf: 685                 # sales psf above industry avg ~$575
+    # --- Mid-box ---
+    - tenant: PetSmart
+      suite: "Bay 100"
+      sf: 18000
+      base_rent_psf: 22.00
+      lease_type: NNN
+      lease_start: 2019-03-01
+      lease_end: 2029-02-28          # rolls Yr 3
+      escalation_pct: 0.015
+      free_rent_remaining_mo: 0
+    # --- Inline shops ---
+    - tenant: Chase Bank
+      suite: "Shop 200"
+      sf: 4500
+      base_rent_psf: 48.00            # pad / endcap premium
+      lease_type: NNN
+      lease_start: 2022-06-01
+      lease_end: 2032-05-31
+      escalation_pct: 0.02
+      free_rent_remaining_mo: 0
+    - tenant: Starbucks
+      suite: "Shop 210"
+      sf: 2000
+      base_rent_psf: 65.00
+      lease_type: NNN
+      lease_start: 2021-01-01
+      lease_end: 2031-12-31
+      escalation_pct: 0.025
+      free_rent_remaining_mo: 0
+      pct_rent_rate: 0.06             # 6% of sales over natural breakpoint
+      sales_psf: 1800                  # high-volume location (drive-thru)
+    - tenant: Panera Bread
+      suite: "Shop 220"
+      sf: 4200
+      base_rent_psf: 42.00
+      lease_type: NNN
+      lease_start: 2020-05-01
+      lease_end: 2030-04-30
+      escalation_pct: 0.02
+      free_rent_remaining_mo: 0
+    - tenant: Great Clips
+      suite: "Shop 230"
+      sf: 1500
+      base_rent_psf: 38.00
+      lease_type: BYS
+      lease_start: 2024-02-01
+      lease_end: 2029-01-31           # rolls Yr 3
+      escalation_pct: 0.025
+      free_rent_remaining_mo: 0
+    - tenant: Local Wine Bar
+      suite: "Shop 240"
+      sf: 3200
+      base_rent_psf: 36.00
+      lease_type: BYS
+      lease_start: 2023-08-01
+      lease_end: 2028-07-31           # rolls Yr 2
+      escalation_pct: 0.025
+      free_rent_remaining_mo: 0
+    - tenant: Verizon
+      suite: "Shop 250"
+      sf: 2500
+      base_rent_psf: 44.00
+      lease_type: NNN
+      lease_start: 2022-11-01
+      lease_end: 2027-10-31           # rolls Yr 1
+      escalation_pct: 0.02
+      free_rent_remaining_mo: 0
+    - tenant: Nail Salon LLC
+      suite: "Shop 260"
+      sf: 1800
+      base_rent_psf: 32.00
+      lease_type: NNN
+      lease_start: 2024-09-01
+      lease_end: 2029-08-31
+      escalation_pct: 0.025
+      free_rent_remaining_mo: 2
+
+acquisition:
+  purchase_price: 27500000           # ~$220/SF, ~6.0% going-in
+  closing_costs_pct: 0.015
+  initial_capex: 350000              # parking lot seal, monument sign refresh
+  day_one_reserves: 200000
+  close_date: 2026-06-01
+
+market:
+  market_rent_psf: 40.00              # blended inline market; anchor below market by convention
+  market_rent_growth: 0.025
+  new_lease_term_yrs: 7
+  new_escalation_pct: 0.025
+  new_free_rent_mo: 4
+  new_ti_psf: 55.00
+  new_lc_pct: 0.06
+  downtime_mo: 8
+  renewal_lease_term_yrs: 5
+  renewal_escalation_pct: 0.025
+  renewal_free_rent_mo: 1
+  renewal_ti_psf: 15.00
+  renewal_lc_pct: 0.03
+  renewal_prob: 0.70
+  sales_growth: 0.03
+
+opex:
+  cam_psf: 3.20
+  re_tax: 520000
+  insurance_psf: 0.45
+  utilities_psf: 0.75                # common-area lot lighting
+  non_recoverable_psf: 0.40
+  mgmt_fee_pct: 0.04                 # retail higher mgmt intensity
+  cam_growth: 0.03
+  re_tax_growth: 0.03
+  insurance_growth: 0.04
+  utilities_growth: 0.03
+  non_recoverable_growth: 0.03
+
+capex:
+  initial_building_capex: 250000
+  recurring_reserve_psf: 0.20
+
+debt:
+  rate: 0.0675
+  term_yrs: 10
+  amort_yrs: 30
+  io_period_yrs: 2
+  max_ltv: 0.60
+  min_dscr: 1.30
+  min_debt_yield: 0.08
+  origination_fee_pct: 0.01
+  lender_reserves: 0
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.01
+
+exit:
+  hold_yrs: 5
+  exit_cap: 0.06                      # ~40 bps expansion over going-in (5.57 -> 6.00)
+  cost_of_sale_pct: 0.02
+  exit_noi_basis: forward

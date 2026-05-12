@@ -1,0 +1,89 @@
+# example-industrial.yaml -- single-tenant NNN bulk distribution warehouse.
+# Pattern: 100% leased to a credit tenant on a long-dated NNN lease with
+# annual escalators. Low TI/LC, low recurring capex, modest cap rate spread.
+
+deal_id: harbor_logistics
+deal_name: Harbor Logistics Center
+sponsor: Acquirer
+
+property:
+  name: Harbor Logistics Center
+  address: 4250 Logistics Parkway, Inland Empire West, CA 91761
+  submarket: Inland Empire West
+  year_built: 2018
+  asset_class: industrial
+  total_rba: 450000
+  general_vacancy_pct: 0.02         # credit tenant, minimal credit loss reserve
+  rent_roll:
+    - tenant: National Logistics Co.
+      suite: "Whole Building"
+      sf: 450000
+      base_rent_psf: 9.25            # NNN psf, Inland Empire ~$9-10 PSF range
+      lease_type: NNN
+      lease_start: 2023-01-01
+      lease_end: 2033-12-31          # 10-yr lease, 8 yrs remaining at close
+      escalation_pct: 0.035          # 3.5% annual bumps standard for IE Class A
+      free_rent_remaining_mo: 0
+
+acquisition:
+  purchase_price: 78000000           # ~$173/SF, ~5.3% going-in
+  closing_costs_pct: 0.012
+  initial_capex: 200000              # roof inspection / dock-door touch-ups
+  day_one_reserves: 100000
+  close_date: 2026-06-01
+
+market:
+  market_rent_psf: 11.00             # market has run ahead of in-place
+  market_rent_growth: 0.04
+  new_lease_term_yrs: 10
+  new_escalation_pct: 0.035
+  new_free_rent_mo: 3
+  new_ti_psf: 5.00                   # industrial TI light (paint, racking)
+  new_lc_pct: 0.05
+  downtime_mo: 6
+  renewal_lease_term_yrs: 7
+  renewal_escalation_pct: 0.03
+  renewal_free_rent_mo: 1
+  renewal_ti_psf: 1.50
+  renewal_lc_pct: 0.025
+  renewal_prob: 0.75                 # high renewal probability for credit industrial
+
+opex:
+  cam_psf: 0.65
+  re_tax: 850000
+  insurance_psf: 0.18
+  utilities_psf: 0.05                # common-area only (tenant direct-meters its own)
+  non_recoverable_psf: 0.10
+  mgmt_fee_pct: 0.02
+  cam_growth: 0.03
+  re_tax_growth: 0.025
+  insurance_growth: 0.05
+  utilities_growth: 0.03
+  non_recoverable_growth: 0.03
+
+capex:
+  initial_building_capex: 0
+  recurring_reserve_psf: 0.08        # industrial minimal recurring reserve
+
+debt:
+  rate: 0.0625
+  term_yrs: 7
+  amort_yrs: 30
+  io_period_yrs: 3
+  max_ltv: 0.60
+  min_dscr: 1.35
+  min_debt_yield: 0.08
+  origination_fee_pct: 0.01
+  lender_reserves: 0
+
+equity:
+  pref_rate: 0.07
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.0075
+
+exit:
+  hold_yrs: 5
+  exit_cap: 0.055
+  cost_of_sale_pct: 0.015
+  exit_noi_basis: forward
