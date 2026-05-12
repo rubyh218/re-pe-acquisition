@@ -57,6 +57,18 @@ class MemoYearLine:
     ncf_levered: float
 
 
+@dataclass
+class CommercialMemoBlock:
+    """Commercial-specific tables: rent roll, WALT, concentration, rollover."""
+    walt_yrs: float                              # weighted-average lease term (by rent)
+    rent_roll: list[tuple[str, str, int, float, float, str, str, float]]
+    # (tenant, suite, sf, base_rent_psf, annual_rent, lease_type, lease_end_iso, pct_of_rent)
+    top_tenants: list[tuple[str, int, float, float]]
+    # (tenant, sf, annual_rent, pct_of_rent) -- top 5 by rent
+    rollover: list[tuple[int, int, float, float, float, float]]
+    # (year, sf_rolling, pct_of_rba, in_place_rent, market_rent_at_roll, mtm_pct)
+
+
 # ---------------------------------------------------------------------------
 # Formatters
 # ---------------------------------------------------------------------------
@@ -91,6 +103,7 @@ def write_ic_memo(
     out_path: Path,
     revenue_label: str = "Revenue",
     preparer: str = "Acquisitions",
+    commercial: CommercialMemoBlock | None = None,
 ) -> Path:
     """Render the IC memo as a docx at `out_path`."""
     doc = Document()
@@ -166,6 +179,48 @@ def write_ic_memo(
         ],
         numeric_cols=[],
     )
+
+    # ---- 2b. Tenancy & Rollover (commercial only) ----
+    if commercial is not None:
+        add_heading(doc, "2a. Tenancy & Rollover", level=1)
+        add_para(
+            doc,
+            f"Weighted-average lease term (WALT, rent-weighted): "
+            f"{commercial.walt_yrs:.1f} years."
+        )
+        add_para(doc, "Top tenants by annual rent:")
+        add_table(
+            doc,
+            headers=["Tenant", "SF", "Annual Rent", "% of Rent"],
+            rows=[
+                [t, f"{sf:,}", _fmt_dollar(rent), _fmt_pct(pct, 1)]
+                for (t, sf, rent, pct) in commercial.top_tenants
+            ],
+            numeric_cols=[1, 2, 3],
+        )
+        add_para(doc, "Rent roll detail:")
+        add_table(
+            doc,
+            headers=["Tenant", "Suite", "SF", "$/SF", "Annual Rent", "Type", "Expires", "% of Rent"],
+            rows=[
+                [t, s, f"{sf:,}", f"${psf:.2f}", _fmt_dollar(annual),
+                 typ, exp, _fmt_pct(pct, 1)]
+                for (t, s, sf, psf, annual, typ, exp, pct) in commercial.rent_roll
+            ],
+            numeric_cols=[2, 3, 4, 7],
+        )
+        add_para(doc, "Rollover schedule (lease expirations during hold):")
+        add_table(
+            doc,
+            headers=["Year", "SF Rolling", "% of RBA", "In-Place Rent",
+                     "Market Rent at Roll", "MTM Spread"],
+            rows=[
+                [f"Yr {yr}", f"{sf:,}", _fmt_pct(rba_pct, 1),
+                 _fmt_dollar(ip), _fmt_dollar(mk), _fmt_pct(mtm, 1)]
+                for (yr, sf, rba_pct, ip, mk, mtm) in commercial.rollover
+            ],
+            numeric_cols=[1, 2, 3, 4, 5],
+        )
 
     # ---- 3. Transaction Structure ----
     add_heading(doc, "3. Transaction Structure", level=1)
@@ -348,7 +403,7 @@ def _build_mf(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine]]:
     return payload, years
 
 
-def _build_commercial(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine]]:
+def _build_commercial(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], CommercialMemoBlock]:
     from .commercial.models import load_commercial_deal
     from .commercial.pro_forma import build_commercial_pro_forma
     from .waterfall_acq import run_acquisition_waterfall
@@ -371,7 +426,46 @@ def _build_commercial(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine
         )
         for yl in pf.years
     ]
-    return payload, years
+
+    # --- Commercial-specific block ---
+    close = deal.acquisition.close_date
+    total_in_place = sum(l.base_rent_psf * l.sf for l in deal.property.rent_roll)
+    walt_num = sum(
+        (l.base_rent_psf * l.sf) * max(0.0, ((l.lease_end - close).days / 365.25))
+        for l in deal.property.rent_roll
+    )
+    walt = walt_num / total_in_place if total_in_place > 0 else 0.0
+
+    rent_roll = []
+    for l in deal.property.rent_roll:
+        annual = l.base_rent_psf * l.sf
+        rent_roll.append((
+            l.tenant, l.suite or "-", l.sf, l.base_rent_psf, annual,
+            l.lease_type, l.lease_end.isoformat(),
+            annual / total_in_place if total_in_place > 0 else 0.0,
+        ))
+
+    by_tenant: dict[str, tuple[int, float]] = {}
+    for l in deal.property.rent_roll:
+        cur_sf, cur_rent = by_tenant.get(l.tenant, (0, 0.0))
+        by_tenant[l.tenant] = (cur_sf + l.sf, cur_rent + l.base_rent_psf * l.sf)
+    top = sorted(by_tenant.items(), key=lambda kv: -kv[1][1])[:5]
+    top_tenants = [
+        (t, sf, rent, rent / total_in_place if total_in_place > 0 else 0.0)
+        for (t, (sf, rent)) in top
+    ]
+
+    rba = deal.property.total_rba
+    rollover = [
+        (ro.year, ro.sf_rolling, ro.sf_rolling / rba if rba > 0 else 0.0,
+         ro.in_place_rent_rolling, ro.market_rent_at_roll, ro.mtm_spread_pct)
+        for ro in pf.rollover_schedule
+    ]
+
+    block = CommercialMemoBlock(
+        walt_yrs=walt, rent_roll=rent_roll, top_tenants=top_tenants, rollover=rollover,
+    )
+    return payload, years, block
 
 
 def _build_hospitality(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine]]:
@@ -404,17 +498,16 @@ def _build_hospitality(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLin
     return payload, years
 
 
-def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str]:
+def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, CommercialMemoBlock | None]:
     """Detect asset class from YAML, dispatch to correct engine.
 
-    Returns (payload, year_lines, revenue_label).
+    Returns (payload, year_lines, revenue_label, commercial_block_or_None).
     """
     import yaml
     with open(deal_path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     prop = raw.get("property", {}) or {}
     asset_class = (prop.get("asset_class") or "").lower()
-    # Fallbacks: infer from distinctive fields when asset_class is omitted.
     if not asset_class:
         if "keys" in prop or "service_level" in prop or "brand" in prop:
             asset_class = "hospitality"
@@ -425,13 +518,13 @@ def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str]:
 
     if asset_class == "multifamily":
         payload, years = _build_mf(deal_path)
-        return payload, years, "EGI"
+        return payload, years, "EGI", None
     if asset_class in {"office", "industrial", "retail"}:
-        payload, years = _build_commercial(deal_path)
-        return payload, years, "EGI"
+        payload, years, block = _build_commercial(deal_path)
+        return payload, years, "EGI", block
     if asset_class == "hospitality":
         payload, years = _build_hospitality(deal_path)
-        return payload, years, "Total Revenue"
+        return payload, years, "Total Revenue", None
     raise ValueError(
         f"unknown asset_class '{asset_class}' in {deal_path}. "
         f"Expected: multifamily / office / industrial / retail / hospitality."
@@ -473,9 +566,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    payload, years, revenue_label = _dispatch(args.deal)
+    payload, years, revenue_label, commercial = _dispatch(args.deal)
     out = Path(args.output) if args.output else Path("outputs") / f"{payload.deal_id}-ic-memo.docx"
-    write_ic_memo(payload, years, out, revenue_label=revenue_label, preparer=args.preparer)
+    write_ic_memo(payload, years, out, revenue_label=revenue_label, preparer=args.preparer, commercial=commercial)
     _print_status(payload, out)
     return 0
 
