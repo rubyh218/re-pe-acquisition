@@ -151,11 +151,37 @@ class Debt(_Frozen):
 # Equity / Waterfall
 # ---------------------------------------------------------------------------
 
+class WaterfallTier(_Frozen):
+    """One tier in a multi-tier IRR-hurdle waterfall.
+
+    Tiers are listed in ascending hurdle order. The LAST tier is the residual:
+    its `hurdle_irr` is ignored — all cash beyond capped tiers splits at the
+    residual's `promote_pct`.
+    """
+    hurdle_irr:  float = Field(ge=0, le=0.50)   # ignored for residual tier
+    promote_pct: float = Field(ge=0, lt=0.80)
+    label:       str = ""
+
+
 class Equity(_Frozen):
     pref_rate:        float = Field(default=0.08, ge=0, le=0.20)
     promote_pct:      float = Field(default=0.20, ge=0, lt=0.50)
     gp_coinvest_pct:  float = Field(default=0.10, ge=0, le=1.0)  # GP's share of equity check
     acq_fee_pct:      float = Field(default=0.0, ge=0, le=0.03)  # GP acquisition fee (% of purchase price)
+
+    # Optional multi-tier override. If provided, supersedes pref_rate + promote_pct.
+    # Convention: tiers ascending by hurdle_irr; LAST tier is residual.
+    tiers: list[WaterfallTier] | None = None
+
+    @property
+    def waterfall_tiers(self) -> list[WaterfallTier]:
+        """Resolve the active tier list (explicit `tiers` or legacy 2-tier)."""
+        if self.tiers:
+            return list(self.tiers)
+        return [
+            WaterfallTier(hurdle_irr=self.pref_rate, promote_pct=0.0, label="Preferred Return"),
+            WaterfallTier(hurdle_irr=0.0,            promote_pct=self.promote_pct, label="Residual"),
+        ]
 
 
 # ---------------------------------------------------------------------------

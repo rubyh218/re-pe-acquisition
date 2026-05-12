@@ -1,0 +1,94 @@
+acquisition:
+  close_date: 2026-06-15
+  closing_costs_pct: 0.015
+  day_one_reserves: 250000
+  initial_capex: 1500000
+  purchase_price: 42000000
+capex:
+  common_area_capex: 750000
+  recurring_reserve_per_unit: 300
+  rent_premium_per_unit_mo: 175
+  units_renovated_pct:
+  - 0.4
+  - 0.4
+  - 0.2
+  value_add_per_unit: 12000
+deal_id: marina-apts-2026
+deal_name: "Marina Apartments \xE2\u20AC\u201D Charlotte, NC"
+debt:
+  amort_yrs: 30
+  io_period_yrs: 3
+  lender_reserves: 150000
+  max_ltv: 0.65
+  min_debt_yield: 0.08
+  min_dscr: 1.25
+  origination_fee_pct: 0.0075
+  rate: 0.0625
+  term_yrs: 10
+equity:
+  acq_fee_pct: 0.01
+  gp_coinvest_pct: 0.1
+  pref_rate: 0.08
+  promote_pct: 0.2
+  tiers:
+  - hurdle_irr: 0.08
+    label: Pref 8%
+    promote_pct: 0.0
+  - hurdle_irr: 0.15
+    label: Tier II (80/20)
+    promote_pct: 0.2
+  - hurdle_irr: 0.0
+    label: Residual (60/40)
+    promote_pct: 0.4
+exit:
+  cost_of_sale_pct: 0.015
+  exit_cap: 0.0575
+  exit_noi_basis: forward
+  hold_yrs: 5
+opex:
+  growth: 0.03
+  insurance_per_unit: 525
+  marketing_per_unit: 250
+  mgmt_fee_pct: 0.03
+  other_per_unit: 150
+  payroll_per_unit: 1100
+  re_tax: 450000
+  re_tax_growth: 0.04
+  rm_per_unit: 750
+  utilities_per_unit: 400
+property:
+  address: 1234 Marina Blvd, Charlotte, NC 28203
+  asset_class: multifamily
+  name: Marina Apartments
+  submarket: South End / Charlotte
+  unit_mix:
+  - count: 80
+    in_place_rent: 1325
+    market_rent: 1450
+    name: 1BR/1BA
+    sf: 720
+  - count: 100
+    in_place_rent: 1650
+    market_rent: 1825
+    name: 2BR/2BA
+    sf: 1010
+  - count: 20
+    in_place_rent: 2100
+    market_rent: 2275
+    name: 3BR/2BA
+    sf: 1280
+  year_built: 1998
+revenue:
+  bad_debt: 0.015
+  concessions_yr1: 0.02
+  other_income_growth: 0.03
+  other_income_per_unit_mo: 75
+  rent_growth:
+  - 0.05
+  - 0.06
+  - 0.04
+  - 0.03
+  - 0.03
+  - 0.03
+  vacancy: 0.07
+sponsor: Acquirer Capital

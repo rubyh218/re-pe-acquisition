@@ -490,6 +490,23 @@ def write_workbook(
     _write_returns(wb, pf, wf)
     _write_sensitivities(wb, sensitivities)
 
+    # v5 institutional Executive Summary as first tab
+    from .excel_summary import build_payload, write_executive_summary
+    value_add_total = (
+        pf.deal.capex.value_add_per_unit * pf.deal.property.unit_count
+        if pf.deal.capex.value_add_per_unit > 0 else 0.0
+    )
+    payload = build_payload(
+        pf=pf, wf=wf,
+        asset_class="Multifamily",
+        denom_label="Units",
+        denom_value=pf.deal.property.unit_count,
+        per_denom_label="$/Unit",
+        per_denom_fmt="per_unit",
+        value_add_capex_total=value_add_total,
+    )
+    write_executive_summary(wb, payload)
+
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)

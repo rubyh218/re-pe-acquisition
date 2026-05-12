@@ -23,6 +23,7 @@ from datetime import date
 from typing import Literal
 
 from .debt_sizing import AmortYear, SizingResult, amortization_schedule, size_loan
+from .metrics import ReturnOnCost, compute_roc
 from .models import Deal
 
 
@@ -114,6 +115,7 @@ class ProForma:
     going_in_cap: float
     stabilized_cap: float
     all_in_basis_per_unit: float
+    roc: "ReturnOnCost"
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +302,19 @@ def build_pro_forma(deal: Deal) -> ProForma:
     all_in_basis = total_uses
     all_in_basis_per_unit = all_in_basis / units
 
+    # --- 3-basis ROC (institutional headline) ---
+    stab_yr = stabilized_idx + 1
+    avg_rent_growth = sum(rg[:stab_yr]) / stab_yr if rg else 0.03
+    # Exit-FTM NOI: use exit_summary.exit_noi which is forward NOI when basis=forward
+    roc = compute_roc(
+        yr1_noi=years_with_debt[0].noi,
+        stab_noi=years_with_debt[stabilized_idx].noi,
+        exit_ftm_noi=exit_noi,
+        all_in_basis=all_in_basis,
+        stab_yr=stab_yr,
+        growth_rate=avg_rent_growth,
+    )
+
     # --- Equity cash flows (total equity = LP + GP combined) ---
     equity_flows: list[EquityFlow] = [
         EquityFlow(period=deal.acquisition.close_date, amount=-equity_check),
@@ -325,4 +340,5 @@ def build_pro_forma(deal: Deal) -> ProForma:
         going_in_cap=going_in_cap,
         stabilized_cap=stabilized_cap,
         all_in_basis_per_unit=all_in_basis_per_unit,
+        roc=roc,
     )

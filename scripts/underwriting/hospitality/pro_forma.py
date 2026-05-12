@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from ..debt_sizing import AmortYear, SizingResult, amortization_schedule, size_loan
+from ..metrics import ReturnOnCost, compute_roc
 from .models import HotelDeal
 
 
@@ -124,6 +125,7 @@ class HotelProForma:
     going_in_cap: float
     stabilized_cap: float
     all_in_basis_per_key: float
+    roc: ReturnOnCost
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +279,17 @@ def build_hotel_pro_forma(deal: HotelDeal) -> HotelProForma:
     stabilized_cap = pre_debt[stabilized_idx].noi / deal.acquisition.purchase_price
     all_in_basis_per_key = total_uses / prop.keys
 
+    # --- 3-basis ROC (ADR growth proxies operating growth) ---
+    stab_yr = stabilized_idx + 1
+    roc = compute_roc(
+        yr1_noi=pre_debt[0].noi,
+        stab_noi=pre_debt[stabilized_idx].noi,
+        exit_ftm_noi=exit_noi,
+        all_in_basis=total_uses,
+        stab_yr=stab_yr,
+        growth_rate=deal.operating.adr_growth,
+    )
+
     # --- Equity flows (Day 0 contribution, then NCF levered; exit added to last hold year) ---
     equity_flows: list[EquityFlow] = [EquityFlow(period=close, amount=-equity_check)]
     for i in range(hold):
@@ -295,4 +308,5 @@ def build_hotel_pro_forma(deal: HotelDeal) -> HotelProForma:
         equity_flows_total=equity_flows,
         going_in_cap=going_in_cap, stabilized_cap=stabilized_cap,
         all_in_basis_per_key=all_in_basis_per_key,
+        roc=roc,
     )

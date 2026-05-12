@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from ..debt_sizing import AmortYear, SizingResult, amortization_schedule, size_loan
+from ..metrics import ReturnOnCost, compute_roc
 from .lease_cf import LeaseYear, lease_cash_flow, recoverable_pool_total
 from .models import CommercialDeal
 
@@ -106,6 +107,7 @@ class CommercialProForma:
     going_in_cap: float
     stabilized_cap: float
     all_in_basis_per_sf: float
+    roc: ReturnOnCost
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +232,18 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
     stabilized_cap = pre_debt[stabilized_idx].noi / deal.acquisition.purchase_price
     all_in_basis_per_sf = total_uses / prop.total_rba
 
+    # --- 3-basis ROC (use market.escalation as proxy for organic growth) ---
+    stab_yr = stabilized_idx + 1
+    growth_rate = getattr(deal.market, "new_escalation_pct", 0.03)
+    roc = compute_roc(
+        yr1_noi=pre_debt[0].noi,
+        stab_noi=pre_debt[stabilized_idx].noi,
+        exit_ftm_noi=exit_noi,
+        all_in_basis=total_uses,
+        stab_yr=stab_yr,
+        growth_rate=growth_rate,
+    )
+
     # --- 7. Equity flows ---
     equity_flows: list[EquityFlow] = [EquityFlow(period=close, amount=-equity_check)]
     for i in range(hold):
@@ -248,4 +262,5 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
         equity_flows_total=equity_flows,
         going_in_cap=going_in_cap, stabilized_cap=stabilized_cap,
         all_in_basis_per_sf=all_in_basis_per_sf,
+        roc=roc,
     )

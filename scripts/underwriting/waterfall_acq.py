@@ -1,16 +1,16 @@
 """
-waterfall_acq.py — LP / GP waterfall on PROJECTED acquisition cash flows.
+waterfall_acq.py — LP / GP multi-tier IRR-hurdle waterfall on projected flows.
 
-Wraps vendor/asset-management/scripts/waterfall.py for the projected (forward-
-looking) case. The vendor module assumes a single LP fund the entire equity;
-acquisitions typically have a GP co-invest. We model:
+Thin adapter over `waterfall_multi.run_multi_tier_waterfall` that:
+  - Resolves the tier list from `Deal.equity` (explicit tiers or legacy
+    pref_rate + promote_pct via the auto-generated 2-tier list).
+  - Maps multi-tier engine output to the historical `WaterfallResult` shape so
+    existing call sites (cli.py, excel_writer.py) keep working.
+  - Preserves the full multi-tier detail via `per_tier` and `tiers` fields,
+    which the v5 institutional writer consumes.
 
-  - Total equity flows (LP + GP combined) drive the waterfall.
-  - Result is split: LP gets (1 - gp_coinvest) of the LP-tier distributions;
-    GP gets gp_coinvest of LP-tier distributions PLUS the GP promote stream.
-
-This is the standard institutional treatment — GP co-invest is pari-passu with
-LP, and GP earns promote on top of that.
+GP co-invest is pari-passu with LP; promote stacks on top. The pari-passu split
+is performed inside the multi-tier engine.
 """
 
 from __future__ import annotations
@@ -18,72 +18,61 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-import scripts  # noqa: F401  (sets sys.path so vendor scripts import)
-from returns import moic, xirr
-from waterfall import run_waterfall
-
 from .models import Deal
-from .pro_forma import EquityFlow, ProForma
-
-
-@dataclass
-class PartyReturn:
-    irr: float
-    moic: float
-    contributed: float
-    distributed: float
+from .pro_forma import ProForma
+from .waterfall_multi import (
+    MultiTierResult,
+    PartyReturn,
+    Tier,
+    TierDistribution,
+    run_multi_tier_waterfall,
+)
 
 
 @dataclass
 class WaterfallResult:
+    # Legacy fields (kept for CLI / existing Excel writer)
     pref_rate: float
     promote_pct: float
-    total_equity_irr: float          # pre-waterfall ("project equity")
+    total_equity_irr: float
     total_equity_moic: float
-    lp: PartyReturn                   # net of waterfall
-    gp: PartyReturn                   # co-invest pari-passu + promote
+    lp: PartyReturn
+    gp: PartyReturn
+    # v5 multi-tier fields
+    tiers: list[Tier]
+    per_tier: list[TierDistribution]
+    lp_flows: list[tuple[date, float]]
+    gp_flows: list[tuple[date, float]]
+
+
+def _deal_tiers(deal: Deal) -> list[Tier]:
+    """Translate Deal.equity.waterfall_tiers (pydantic) into engine Tiers (frozen dc)."""
+    return [
+        Tier(hurdle_irr=t.hurdle_irr, promote_pct=t.promote_pct, label=t.label)
+        for t in deal.equity.waterfall_tiers
+    ]
 
 
 def run_acquisition_waterfall(pf: ProForma) -> WaterfallResult:
     deal = pf.deal
-    coinvest = deal.equity.gp_coinvest_pct
-    pref = deal.equity.pref_rate
-    promote = deal.equity.promote_pct
+    tiers = _deal_tiers(deal)
+    flows: list[tuple[date, float]] = [(ef.period, ef.amount) for ef in pf.equity_flows_total]
 
-    flows_dated: list[tuple[date, float]] = [(ef.period, ef.amount) for ef in pf.equity_flows_total]
-
-    # Pre-waterfall ("project equity") return on total equity
-    project_irr = xirr(flows_dated)
-    project_moic, project_contrib, project_dist = moic(flows_dated)
-
-    # Run waterfall on total equity flows. The vendor treats this as 100% LP-funded.
-    # We then re-attribute LP-tier distributions between LP fund (1-coinvest) and GP co-invest (coinvest).
-    wf = run_waterfall(flows_dated, pref_rate=pref, promote_pct=promote)
-
-    # LP fund's flows: pari-passu share of LP-tier distributions, contributions = (1-coinvest) of total contrib
-    lp_fund_flows: list[tuple[date, float]] = []
-    gp_flows: list[tuple[date, float]] = []
-    for (d, lp_amt), (_, gp_promote_amt) in zip(wf["lp_flows"], wf["gp_flows"]):
-        if lp_amt < 0:
-            # contribution
-            lp_fund_flows.append((d, lp_amt * (1 - coinvest)))
-            gp_flows.append((d, lp_amt * coinvest))           # GP co-invest contribution (negative)
-        else:
-            # distribution from LP tiers
-            lp_fund_flows.append((d, lp_amt * (1 - coinvest)))
-            gp_pari = lp_amt * coinvest
-            gp_flows.append((d, gp_pari + gp_promote_amt))
-
-    lp_irr = xirr(lp_fund_flows)
-    lp_moic_v, lp_contrib, lp_dist = moic(lp_fund_flows)
-    gp_irr = xirr(gp_flows) if any(a < 0 for _, a in gp_flows) and any(a > 0 for _, a in gp_flows) else float("nan")
-    gp_moic_v, gp_contrib, gp_dist = moic(gp_flows)
+    res: MultiTierResult = run_multi_tier_waterfall(
+        flows=flows,
+        tiers=tiers,
+        gp_coinvest_pct=deal.equity.gp_coinvest_pct,
+    )
 
     return WaterfallResult(
-        pref_rate=pref,
-        promote_pct=promote,
-        total_equity_irr=project_irr,
-        total_equity_moic=project_moic,
-        lp=PartyReturn(irr=lp_irr, moic=lp_moic_v, contributed=lp_contrib, distributed=lp_dist),
-        gp=PartyReturn(irr=gp_irr, moic=gp_moic_v, contributed=gp_contrib, distributed=gp_dist),
+        pref_rate=deal.equity.pref_rate,
+        promote_pct=deal.equity.promote_pct,
+        total_equity_irr=res.project_irr,
+        total_equity_moic=res.project_moic,
+        lp=res.lp,
+        gp=res.gp,
+        tiers=res.tiers,
+        per_tier=res.per_tier,
+        lp_flows=res.lp_flows,
+        gp_flows=res.gp_flows,
     )

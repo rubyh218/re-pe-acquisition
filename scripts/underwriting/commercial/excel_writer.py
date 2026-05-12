@@ -403,5 +403,17 @@ def write_commercial_workbook(pf: CommercialProForma, wf: WaterfallResult, out_p
     _write_debt(wb, pf)
     _write_returns(wb, pf, wf)
 
+    from ..excel_summary import build_payload, write_executive_summary
+    payload = build_payload(
+        pf=pf, wf=wf,
+        asset_class=pf.deal.property.property_type.title() if hasattr(pf.deal.property, "property_type") else "Commercial",
+        denom_label="RBA (SF)",
+        denom_value=pf.deal.property.total_rba,
+        per_denom_label="$/SF",
+        per_denom_fmt="per_sf",
+        value_add_capex_total=0.0,
+    )
+    write_executive_summary(wb, payload)
+
     wb.save(out_path)
     return out_path

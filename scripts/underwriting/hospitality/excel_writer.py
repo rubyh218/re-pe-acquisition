@@ -442,5 +442,17 @@ def write_hotel_workbook(pf: HotelProForma, wf: WaterfallResult, out_path: Path)
     _write_debt(wb, pf)
     _write_returns(wb, pf, wf)
 
+    from ..excel_summary import build_payload, write_executive_summary
+    payload = build_payload(
+        pf=pf, wf=wf,
+        asset_class="Hospitality",
+        denom_label="Keys",
+        denom_value=pf.deal.property.keys,
+        per_denom_label="$/Key",
+        per_denom_fmt="per_unit",
+        value_add_capex_total=pf.deal.capex.pip_total,
+    )
+    write_executive_summary(wb, payload)
+
     wb.save(out_path)
     return out_path
