@@ -48,6 +48,10 @@ def main(argv: list[str] | None = None) -> int:
         "-o", "--output", type=Path, default=None,
         help="Output YAML path (default: <pdf-stem>.yaml in same dir).",
     )
+    parser.add_argument(
+        "-t", "--type", choices=["multifamily", "commercial"], default="multifamily",
+        help="OM type: multifamily (default) or commercial (office/industrial/retail).",
+    )
     args = parser.parse_args(argv)
 
     if not args.pdf.exists():
@@ -56,11 +60,11 @@ def main(argv: list[str] | None = None) -> int:
 
     out_path = args.output or args.pdf.with_suffix(".yaml")
 
-    print(f"Extracting {args.pdf.name} -> {out_path.name} via Claude Sonnet 4.6...")
-    raw, notes = extract_om_raw(args.pdf)
+    print(f"Extracting {args.pdf.name} ({args.type}) -> {out_path.name} via Claude Sonnet 4.6...")
+    raw, notes = extract_om_raw(args.pdf, deal_type=args.type)
 
     try:
-        deal = validate_deal(raw)
+        deal = validate_deal(raw, deal_type=args.type)
     except ValidationError as e:
         _write_partial_yaml(raw, notes, e.errors(), out_path)
         print(f"PARTIAL: wrote {out_path} ({len(e.errors())} field(s) need analyst input)", file=sys.stderr)
@@ -74,7 +78,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"OK: wrote {out_path}")
     print(f"  deal_id:    {deal.deal_id}")
-    print(f"  property:   {deal.property.name} ({deal.property.unit_count} units)")
+    if args.type == "commercial":
+        print(f"  property:   {deal.property.name} ({deal.property.total_rba:,} SF, {len(deal.property.rent_roll)} leases)")
+    else:
+        print(f"  property:   {deal.property.name} ({deal.property.unit_count} units)")
     print(f"  price:      ${deal.acquisition.purchase_price:,.0f}")
     if notes:
         print(f"  notes:      {len(notes)} extraction note(s) -- review YAML header")

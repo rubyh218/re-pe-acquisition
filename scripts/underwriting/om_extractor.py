@@ -21,6 +21,7 @@ import anthropic
 import yaml
 from pydantic import ValidationError
 
+from .commercial.models import CommercialDeal
 from .models import Deal
 
 MODEL = "claude-sonnet-4-6"
@@ -130,6 +131,122 @@ revenue.rent_growth MUST have at least exit.hold_yrs + 1 entries (forward exit N
 """
 
 
+_COMMERCIAL_SYSTEM_PROMPT = """You are an institutional acquisitions analyst extracting an underwriting model input from a commercial real estate Offering Memorandum (OM) -- office, industrial, or retail.
+
+OUTPUT CONTRACT
+Return ONLY a single JSON object inside one ```json fence, matching the CommercialDeal schema below. No prose outside the fence.
+
+EXTRACTION RULES
+1. Use broker-stated numbers verbatim where given (rent roll, T-12 OpEx, price guidance, market rent).
+2. For fields the OM does not state, use `null`. NEVER hallucinate. Common nulls: exit_cap, hold_yrs, debt terms, market growth assumptions, percentage rent.
+3. property.asset_class MUST be one of: office, industrial, retail.
+4. rent_roll: extract EVERY tenant in the rent roll / stacking plan. Each row must have tenant, sf, base_rent_psf (ANNUAL $/SF), lease_type (NNN/BYS/gross), lease_start, lease_end, escalation_pct.
+5. If escalations are unstated, use 0.025 for office, 0.035 for industrial, 0.02 for retail.
+6. lease_type: triple-net -> "NNN"; modified gross / base-year stop -> "BYS"; full-service gross -> "gross".
+7. close_date: use today (analyst assumption) if not stated.
+8. Market re-leasing assumptions (renewal_prob, downtime, TI, LC, free rent, new lease term): if not in OM, use institutional defaults appropriate to asset class -- but flag in _extraction_notes.
+9. deal_id: snake_case from property name. deal_name: title case.
+10. percentage rent (retail): only populate pct_rent_rate and sales_psf if the OM explicitly references percentage rent terms.
+
+COMMERCIAL DEAL JSON SCHEMA
+
+{
+  "deal_id": "string (snake_case)",
+  "deal_name": "string",
+  "sponsor": "string (default 'Acquirer')",
+  "property": {
+    "name": "string",
+    "address": "string",
+    "submarket": "string",
+    "year_built": "int",
+    "asset_class": "office | industrial | retail",
+    "total_rba": "int>0 (rentable building area, SF)",
+    "general_vacancy_pct": "float 0-0.30 (default 0.05; 0.02-0.03 for credit-tenant industrial)",
+    "rent_roll": [
+      {
+        "tenant": "string",
+        "suite": "string or null",
+        "sf": "int>0",
+        "base_rent_psf": "float>0 (ANNUAL $/SF)",
+        "lease_type": "NNN | BYS | gross",
+        "lease_start": "YYYY-MM-DD",
+        "lease_end": "YYYY-MM-DD",
+        "escalation_pct": "float 0-0.15 (e.g., 0.025 = 2.5%/yr)",
+        "free_rent_remaining_mo": "int>=0 (default 0)",
+        "pct_rent_rate": "float 0-0.20 or null (retail only; e.g., 0.06)",
+        "sales_psf": "float>=0 or null (retail only; projected sales $/SF)"
+      }
+    ]
+  },
+  "acquisition": {
+    "purchase_price": "float>0",
+    "closing_costs_pct": "float 0-0.05 (default 0.015)",
+    "initial_capex": "float>=0",
+    "day_one_reserves": "float>=0",
+    "close_date": "YYYY-MM-DD"
+  },
+  "market": {
+    "market_rent_psf": "float>0 (ANNUAL $/SF)",
+    "market_rent_growth": "float (default 0.03)",
+    "new_lease_term_yrs": "int 1-20 (default: office 7, industrial 10, retail 7)",
+    "new_escalation_pct": "float 0-0.15",
+    "new_free_rent_mo": "int 0-24",
+    "new_ti_psf": "float>=0",
+    "new_lc_pct": "float 0-0.15 (typically 0.05-0.06)",
+    "downtime_mo": "int 0-36 (typical 6-12 months)",
+    "renewal_lease_term_yrs": "int 1-20",
+    "renewal_escalation_pct": "float 0-0.15",
+    "renewal_free_rent_mo": "int 0-12",
+    "renewal_ti_psf": "float>=0",
+    "renewal_lc_pct": "float 0-0.10",
+    "renewal_prob": "float 0-1 (default 0.65 office, 0.75 industrial credit, 0.70 retail)",
+    "sales_growth": "float (default 0.025; retail only — escalator on tenant sales)"
+  },
+  "opex": {
+    "cam_psf": "float>=0 (ANNUAL $/SF, recoverable)",
+    "re_tax": "float>=0 (ANNUAL TOTAL $)",
+    "insurance_psf": "float>=0",
+    "utilities_psf": "float>=0 (common-area recoverable)",
+    "non_recoverable_psf": "float>=0",
+    "mgmt_fee_pct": "float 0-0.10 (default 0.03; retail 0.04)",
+    "cam_growth": "float (default 0.03)",
+    "re_tax_growth": "float (default 0.03)",
+    "insurance_growth": "float (default 0.04)",
+    "utilities_growth": "float (default 0.03)",
+    "non_recoverable_growth": "float (default 0.03)"
+  },
+  "capex": {
+    "initial_building_capex": "float>=0",
+    "recurring_reserve_psf": "float>=0 (default 0.20; industrial 0.08)"
+  },
+  "debt": {
+    "rate": "float 0-0.30",
+    "term_yrs": "int>0 (default 10)",
+    "amort_yrs": "int>=0 (0 = full IO; default 30)",
+    "io_period_yrs": "int>=0",
+    "max_ltv": "float 0-0.85 (default 0.60 commercial)",
+    "min_dscr": "float 1.0-2.0 (default 1.30)",
+    "min_debt_yield": "float 0-0.20 (default 0.08)",
+    "origination_fee_pct": "float 0-0.03 (default 0.01)",
+    "lender_reserves": "float>=0"
+  },
+  "equity": {
+    "pref_rate": "float 0-0.20 (default 0.08)",
+    "promote_pct": "float 0-0.50 (default 0.20)",
+    "gp_coinvest_pct": "float 0-1.0 (default 0.10)",
+    "acq_fee_pct": "float 0-0.03 (default 0)"
+  },
+  "exit": {
+    "hold_yrs": "int 1-15 (default 5)",
+    "exit_cap": "float 0-0.20 (going-in + 25-50 bps if unstated)",
+    "cost_of_sale_pct": "float 0-0.05 (default 0.015)",
+    "exit_noi_basis": "trailing | forward (default forward)"
+  },
+  "_extraction_notes": {"field_path": "what was missing/assumed"}
+}
+"""
+
+
 def _encode_pdf(pdf_path: Path) -> str:
     with pdf_path.open("rb") as f:
         return base64.standard_b64encode(f.read()).decode("utf-8")
@@ -146,16 +263,22 @@ def _strip_json_fence(text: str) -> str:
     raise ValueError("No JSON object found in model response")
 
 
-def extract_om_raw(pdf_path: Path, client: anthropic.Anthropic | None = None) -> tuple[dict, dict]:
+def extract_om_raw(
+    pdf_path: Path,
+    client: anthropic.Anthropic | None = None,
+    deal_type: str = "multifamily",
+) -> tuple[dict, dict]:
     """
     Run extraction on a PDF and return the raw extracted dict + notes (no validation).
 
+    deal_type: 'multifamily' or 'commercial'.
     Returns (raw_json_dict, extraction_notes).
     """
     if client is None:
         client = anthropic.Anthropic()
 
     pdf_b64 = _encode_pdf(pdf_path)
+    prompt = _COMMERCIAL_SYSTEM_PROMPT if deal_type == "commercial" else _SYSTEM_PROMPT
 
     response = client.messages.create(
         model=MODEL,
@@ -163,7 +286,7 @@ def extract_om_raw(pdf_path: Path, client: anthropic.Anthropic | None = None) ->
         system=[
             {
                 "type": "text",
-                "text": _SYSTEM_PROMPT,
+                "text": prompt,
                 "cache_control": {"type": "ephemeral"},
             }
         ],
@@ -181,7 +304,11 @@ def extract_om_raw(pdf_path: Path, client: anthropic.Anthropic | None = None) ->
                     },
                     {
                         "type": "text",
-                        "text": "Extract the Deal JSON from this Offering Memorandum. Return ONLY the fenced JSON block.",
+                        "text": (
+                            "Extract the CommercialDeal JSON from this Offering Memorandum. Return ONLY the fenced JSON block."
+                            if deal_type == "commercial"
+                            else "Extract the Deal JSON from this Offering Memorandum. Return ONLY the fenced JSON block."
+                        ),
                     },
                 ],
             }
@@ -194,18 +321,21 @@ def extract_om_raw(pdf_path: Path, client: anthropic.Anthropic | None = None) ->
     return raw_json, notes
 
 
-def validate_deal(raw_json: dict) -> Deal:
-    """Validate an extracted JSON dict against the Deal schema."""
+def validate_deal(raw_json: dict, deal_type: str = "multifamily") -> Deal | CommercialDeal:
+    """Validate an extracted JSON dict against the appropriate schema."""
+    if deal_type == "commercial":
+        return CommercialDeal.model_validate(raw_json)
     return Deal.model_validate(raw_json)
 
 
-def extract_om(pdf_path: Path, client: anthropic.Anthropic | None = None) -> tuple[Deal, dict, dict]:
+def extract_om(pdf_path: Path, client: anthropic.Anthropic | None = None,
+               deal_type: str = "multifamily") -> tuple[Deal | CommercialDeal, dict, dict]:
     """Run extraction and validate. Raises ValidationError on bad schema."""
-    raw, notes = extract_om_raw(pdf_path, client)
-    return validate_deal(raw), raw, notes
+    raw, notes = extract_om_raw(pdf_path, client, deal_type=deal_type)
+    return validate_deal(raw, deal_type), raw, notes
 
 
-def deal_to_yaml(deal: Deal, notes: dict | None = None) -> str:
+def deal_to_yaml(deal: Deal | CommercialDeal, notes: dict | None = None) -> str:
     """Serialize a validated Deal back to YAML, with extraction notes as a leading comment block."""
     body = yaml.safe_dump(
         deal.model_dump(mode="json"),
