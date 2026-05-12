@@ -1,0 +1,110 @@
+# Utility-scale solar PV with contracted PPA + merchant tail.
+# 200 MW AC, 270 MW DC overbuild, ERCOT West Texas siting.
+
+deal_id: WTX-SOLAR-001
+deal_name: West Texas Solar I
+sponsor: Acquirer
+
+property:
+  name: Pecos County Solar
+  address: 4500 FM 1450, Pecos County, TX
+  submarket: West Texas
+  market: ERCOT
+  cod_date: 2024-09-01
+  year_built: 2024
+  asset_class: infrastructure
+  site_acres: 1450
+  interconnect_voltage_kv: 138
+  generation:
+    technology: solar
+    nameplate_mw_ac: 200
+    nameplate_mw_dc: 270
+    capacity_factor: 0.28
+    degradation_pct: 0.005
+    curtailment_pct: 0.06
+    availability_pct: 0.985
+  revenue_streams:
+    - kind: ppa
+      label: PPA - Investment Grade Utility
+      counterparty: Major Texas Utility
+      counterparty_rating: IG
+      price_mwh: 38.0
+      escalation_pct: 0.02
+      allotment_pct: 0.80
+      start_date: 2024-09-01
+      end_date: 2039-08-31
+    - kind: merchant
+      label: ERCOT Merchant Tail
+      counterparty: ERCOT Spot
+      counterparty_rating: Unrated
+      market: ERCOT
+      allotment_pct: 0.20
+      price_curve_mwh: [32, 33, 34, 35, 36, 37]
+      terminal_growth: 0.02
+
+acquisition:
+  purchase_price: 280000000
+  closing_costs_pct: 0.01
+  initial_capex: 0
+  day_one_reserves: 5000000
+  close_date: 2026-06-01
+
+tax_credits:
+  itc_pct: 0.0
+  itc_basis: 0.0
+  ptc_per_mwh: 27.50
+  ptc_term_yrs: 10
+  ptc_inflation: 0.025
+
+opex:
+  fixed_om_per_mw_yr: 14000
+  variable_om_per_mwh: 0.5
+  insurance_per_mw_yr: 3500
+  property_tax: 2200000
+  land_lease: 900000
+  interconnection_om: 250000
+  asset_mgmt_pct: 0.015
+  om_growth: 0.025
+  property_tax_growth: 0.02
+  land_lease_growth: 0.025
+  insurance_growth: 0.03
+
+capex:
+  initial_capex: 0
+  augmentation_schedule:
+    - year: 7
+      amount: 8000000
+      label: Inverter replacement
+  recurring_reserve_per_mw_yr: 2000
+
+debt:
+  rate: 0.065
+  term_yrs: 10
+  amort_yrs: 25
+  io_period_yrs: 1
+  max_ltv: 0.60
+  min_dscr: 1.35
+  min_debt_yield: 0.085
+  origination_fee_pct: 0.01
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.01
+  tiers:
+    - hurdle_irr: 0.08
+      promote_pct: 0.0
+      label: Preferred Return
+    - hurdle_irr: 0.12
+      promote_pct: 0.20
+      label: First Promote
+    - hurdle_irr: 0.18
+      promote_pct: 0.35
+      label: Residual
+
+exit:
+  hold_yrs: 7
+  exit_cap: 0.075
+  cost_of_sale_pct: 0.02
+  exit_noi_basis: forward
