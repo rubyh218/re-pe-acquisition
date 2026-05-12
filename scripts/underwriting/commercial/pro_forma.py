@@ -39,6 +39,7 @@ class CommercialYearLine:
     gross_rent: float           # sum of lease base_rent (after free rent burn)
     free_rent: float            # negative
     recoveries: float           # tenant reimbursements
+    pct_rent: float             # retail overage rent (positive)
     general_vacancy: float      # negative (credit/downtime reserve on gross rent)
     egi: float
     # OpEx
@@ -95,10 +96,20 @@ class EquityFlow:
 
 
 @dataclass
+class RolloverYear:
+    year: int
+    sf_rolling: int
+    in_place_rent_rolling: float    # annual $ rolling at in-place rate
+    market_rent_at_roll: float      # annual $ on rolling SF at market
+    mtm_spread_pct: float           # (market - in_place) / in_place; 0 if no roll
+
+
+@dataclass
 class CommercialProForma:
     deal: CommercialDeal
     years: list[CommercialYearLine]
     per_lease_years: dict[str, list[LeaseYear]]   # keyed by tenant (suite-disambiguated if needed)
+    rollover_schedule: list[RolloverYear]
     sizing: SizingResult
     amort_schedule: list[AmortYear]
     sources_uses: CommercialSourcesUses
@@ -140,6 +151,7 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
         gross_rent = sum(lys[y_idx].base_rent for lys in per_lease.values())
         free_rent = sum(lys[y_idx].free_rent for lys in per_lease.values())
         recoveries = sum(lys[y_idx].recoveries for lys in per_lease.values())
+        pct_rent = sum(lys[y_idx].pct_rent for lys in per_lease.values())
         ti = sum(lys[y_idx].ti for lys in per_lease.values())
         lc = sum(lys[y_idx].lc for lys in per_lease.values())
         avg_occ_sf = sum(
@@ -149,7 +161,7 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
         avg_occupancy_pct = avg_occ_sf / prop.total_rba
 
         general_vacancy = -prop.general_vacancy_pct * gross_rent
-        egi = gross_rent + free_rent + recoveries + general_vacancy
+        egi = gross_rent + free_rent + recoveries + pct_rent + general_vacancy
 
         recoverable = recoverable_pool_total(deal.opex, prop.total_rba, y)
         non_rec_growth = (1 + deal.opex.non_recoverable_growth) ** (y - 1)
@@ -168,6 +180,7 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
         pre_debt.append(CommercialYearLine(
             year=y, period_end=period_end,
             gross_rent=gross_rent, free_rent=free_rent, recoveries=recoveries,
+            pct_rent=pct_rent,
             general_vacancy=general_vacancy, egi=egi,
             recoverable_opex=recoverable, non_recoverable_opex=non_recoverable,
             mgmt_fee=mgmt_fee, total_opex=total_opex, noi=noi,
@@ -255,8 +268,23 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
 
     output_years = pre_debt[: hold + (1 if deal.exit.exit_noi_basis == "forward" else 0)]
 
+    # --- 8. Rollover schedule (aggregated per hold year) ---
+    rollover: list[RolloverYear] = []
+    for y_idx in range(len(output_years)):
+        sf = sum(lys[y_idx].rolling_sf for lys in per_lease.values())
+        in_place = sum(lys[y_idx].rolling_in_place_rent for lys in per_lease.values())
+        mkt = sum(lys[y_idx].market_rent_at_roll for lys in per_lease.values())
+        spread = (mkt - in_place) / in_place if in_place > 0 else 0.0
+        rollover.append(RolloverYear(
+            year=y_idx + 1, sf_rolling=sf,
+            in_place_rent_rolling=in_place,
+            market_rent_at_roll=mkt,
+            mtm_spread_pct=spread,
+        ))
+
     return CommercialProForma(
         deal=deal, years=output_years, per_lease_years=per_lease,
+        rollover_schedule=rollover,
         sizing=sizing, amort_schedule=amort[: len(output_years)],
         sources_uses=sources_uses, exit_summary=exit_summary,
         equity_flows_total=equity_flows,

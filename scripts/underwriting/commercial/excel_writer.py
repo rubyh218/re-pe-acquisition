@@ -201,6 +201,7 @@ def _write_per_lease(wb: Workbook, pf: CommercialProForma):
             ("Base Rent", lambda ly: ly.base_rent),
             ("Free Rent", lambda ly: ly.free_rent),
             ("Recoveries", lambda ly: ly.recoveries),
+            ("Pct Rent", lambda ly: ly.pct_rent),
             ("TI", lambda ly: -ly.ti),
             ("LC", lambda ly: -ly.lc),
             ("Occ. Mo.", lambda ly: ly.occupied_months),
@@ -240,12 +241,13 @@ def _write_pro_forma(wb: Workbook, pf: CommercialProForma):
     row("Gross Rent", lambda y: y.gross_rent)
     row("Free Rent", lambda y: y.free_rent)
     row("Recoveries", lambda y: y.recoveries)
+    row("Percentage Rent", lambda y: y.pct_rent)
     row("General Vacancy", lambda y: y.general_vacancy)
-    # EGI = SUM of above 4 rows (rows r-4..r-1)
+    # EGI = SUM of above 5 rows (rows r-5..r-1)
     write_label(ws, f"B{r}", "EGI", bold=True)
     for i in range(n_years):
         col_letter = ws.cell(row=r, column=3 + i).column_letter
-        write_subtotal(ws, (r, 3 + i), f"=SUM({col_letter}{r-4}:{col_letter}{r-1})", fmt="dollar")
+        write_subtotal(ws, (r, 3 + i), f"=SUM({col_letter}{r-5}:{col_letter}{r-1})", fmt="dollar")
     r += 1
 
     r += 1; write_section(ws, r, "OpEx"); r += 2
@@ -286,6 +288,44 @@ def _write_pro_forma(wb: Workbook, pf: CommercialProForma):
     write_label(ws, f"B{r}", "Avg Occupancy")
     for i in range(n_years):
         write_input(ws, (r, 3 + i), pf.years[i].avg_occupancy_pct, fmt="pct1")
+
+
+# ---------------------------------------------------------------------------
+# Rollover Schedule
+# ---------------------------------------------------------------------------
+
+def _write_rollover(wb: Workbook, pf: CommercialProForma):
+    ws = wb.create_sheet("Rollover")
+    set_sheet_defaults(ws, "Lease Rollover Schedule")
+    write_header(ws, 1, f"{pf.deal.deal_name} - Rollover Schedule", span_cols=8)
+
+    headers = ["Year", "SF Rolling", "% of RBA",
+               "In-Place Rent ($)", "Market Rent at Roll ($)", "MTM Spread %"]
+    for i, h in enumerate(headers, start=2):
+        ws.cell(row=3, column=i, value=h).style = "label_bold"
+
+    rba = pf.deal.property.total_rba
+    r = 4
+    for ro in pf.rollover_schedule:
+        ws.cell(row=r, column=2, value=f"Yr {ro.year}")
+        write_input(ws, (r, 3), ro.sf_rolling, fmt="general")
+        write_input(ws, (r, 4), ro.sf_rolling / rba if rba else 0, fmt="pct1")
+        write_input(ws, (r, 5), ro.in_place_rent_rolling, fmt="dollar")
+        write_input(ws, (r, 6), ro.market_rent_at_roll, fmt="dollar")
+        write_input(ws, (r, 7), ro.mtm_spread_pct, fmt="pct1")
+        r += 1
+
+    # Totals
+    write_label(ws, f"B{r}", "TOTAL", bold=True)
+    total_sf = sum(ro.sf_rolling for ro in pf.rollover_schedule)
+    total_inplace = sum(ro.in_place_rent_rolling for ro in pf.rollover_schedule)
+    total_market = sum(ro.market_rent_at_roll for ro in pf.rollover_schedule)
+    write_input(ws, (r, 3), total_sf, fmt="general")
+    write_subtotal(ws, (r, 4), total_sf / rba if rba else 0, fmt="pct1")
+    write_subtotal(ws, (r, 5), total_inplace, fmt="dollar")
+    write_subtotal(ws, (r, 6), total_market, fmt="dollar")
+    if total_inplace > 0:
+        write_input(ws, (r, 7), (total_market - total_inplace) / total_inplace, fmt="pct1")
 
 
 # ---------------------------------------------------------------------------
@@ -400,13 +440,14 @@ def write_commercial_workbook(pf: CommercialProForma, wf: WaterfallResult, out_p
     _write_rent_roll(wb, pf)
     _write_per_lease(wb, pf)
     _write_pro_forma(wb, pf)
+    _write_rollover(wb, pf)
     _write_debt(wb, pf)
     _write_returns(wb, pf, wf)
 
     from ..excel_summary import build_payload, write_executive_summary
     payload = build_payload(
         pf=pf, wf=wf,
-        asset_class=pf.deal.property.property_type.title() if hasattr(pf.deal.property, "property_type") else "Commercial",
+        asset_class=pf.deal.property.asset_class.title(),
         denom_label="RBA (SF)",
         denom_value=pf.deal.property.total_rba,
         per_denom_label="$/SF",

@@ -58,6 +58,11 @@ class Lease(_Frozen):
     market_rent_psf_override: float | None = Field(default=None, gt=0)
     renewal_prob_override: float | None = Field(default=None, ge=0, le=1.0)
 
+    # Percentage rent (retail). Overage rent above natural breakpoint.
+    # Applied only over the in-place segment; rollover segments revert to base.
+    pct_rent_rate: float | None = Field(default=None, ge=0, le=0.20)   # e.g., 0.06 = 6% of sales
+    sales_psf: float | None = Field(default=None, ge=0)                # projected tenant sales $/SF/yr at close
+
     @model_validator(mode="after")
     def _check_dates(self):
         if self.lease_end <= self.lease_start:
@@ -91,6 +96,9 @@ class Market(_Frozen):
 
     # Blended renewal probability (per-lease override available on Lease)
     renewal_prob: float = Field(default=0.65, ge=0, le=1.0)
+
+    # Retail tenant sales growth (used for percentage rent escalation)
+    sales_growth: float = Field(default=0.025, ge=-0.05, le=0.15)
 
 
 # ---------------------------------------------------------------------------

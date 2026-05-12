@@ -37,10 +37,14 @@ class LeaseYear:
     base_rent: float                # gross contractual rent (positive)
     free_rent: float                # negative (abatement during year)
     recoveries: float               # positive (reimbursement income)
+    pct_rent: float                 # positive (overage rent, retail only)
     ti: float                       # positive expense
     lc: float                       # positive expense
     downtime_loss: float            # positive (rent forgone — already netted in base_rent but tracked for reporting)
     occupied_months: float          # 0..12 — for property-level occupancy roll-up
+    rolling_sf: int                 # SF rolling this year (lease_end falls in window)
+    rolling_in_place_rent: float    # in-place annual rent on the rolling SF
+    market_rent_at_roll: float      # market rent on rolling SF at point of roll
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +340,10 @@ def lease_cash_flow(
     else:
         base_year_pool = 0.0
 
+    # Percentage rent applies only over the in-place lease window.
+    in_place_seg = renewal_segs[0]  # segment 1 is identical across outcomes
+    has_pct_rent = lease.pct_rent_rate is not None and lease.sales_psf is not None
+
     out: list[LeaseYear] = []
     for y in range(1, n_years + 1):
         renew_cf = _outcome_year_cf(renewal_segs, renewal_dts, close_date, y)
@@ -353,8 +361,42 @@ def lease_cash_flow(
         occ_frac = min(1.0, occupied_months / 12)
         recoveries = _compute_recoveries(lease, total_rba, opex, y, occ_frac, base_year_pool)
 
+        # Percentage rent: overage = max(0, sales × rate - base_rent) over the
+        # in-place portion of the year only. Sales escalate at market.sales_growth.
+        pct_rent = 0.0
+        if has_pct_rent:
+            win_start, win_end = _year_window(close_date, y)
+            inplace_overlap = _overlap_months(win_start, win_end, in_place_seg.start, in_place_seg.end)
+            if inplace_overlap > 0:
+                inplace_seg_cf = _segment_year_cf(in_place_seg, close_date, y)
+                annual_sales = lease.sales_psf * lease.sf * (1 + market.sales_growth) ** (y - 1)
+                pro_rata_year = inplace_overlap / 12
+                gross_pct = annual_sales * lease.pct_rent_rate * pro_rata_year
+                threshold = inplace_seg_cf["base_rent"]
+                pct_rent = max(0.0, gross_pct - threshold)
+
+        # Rollover detection: if lease.lease_end falls within this year's window.
+        win_start, win_end = _year_window(close_date, y)
+        rolling_sf = 0
+        rolling_in_place_rent = 0.0
+        market_rent_at_roll = 0.0
+        if win_start <= lease.lease_end < win_end:
+            rolling_sf = lease.sf
+            yrs_in_place = max(0.0, _months_between(close_date, lease.lease_end) / 12)
+            rolling_in_place_rent = (
+                lease.base_rent_psf * lease.sf * (1 + lease.escalation_pct) ** yrs_in_place
+            )
+            yrs_from_close = _months_between(close_date, lease.lease_end) / 12
+            mkt_psf = (lease.market_rent_psf_override or market.market_rent_psf) * \
+                      (1 + market.market_rent_growth) ** yrs_from_close
+            market_rent_at_roll = mkt_psf * lease.sf
+
         out.append(LeaseYear(
             year=y, base_rent=base_rent, free_rent=free_rent, recoveries=recoveries,
-            ti=ti, lc=lc, downtime_loss=downtime_loss, occupied_months=occupied_months,
+            pct_rent=pct_rent, ti=ti, lc=lc, downtime_loss=downtime_loss,
+            occupied_months=occupied_months,
+            rolling_sf=rolling_sf,
+            rolling_in_place_rent=rolling_in_place_rent,
+            market_rent_at_roll=market_rent_at_roll,
         ))
     return out
