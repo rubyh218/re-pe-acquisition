@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
+# Caches
+scripts/market_data/cache/*
+!scripts/market_data/cache/.gitkeep
+
+# User-dropped CoStar exports (data, not code)
+inbox/**/*
+!inbox/**/.gitkeep
+
+# Generated outputs
+out/
+outputs/
+*.xlsx
+*.docx
+!templates/**/*.xlsx
+!templates/**/*.docx
+!assets/**/*.xlsx
+!assets/**/*.docx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/

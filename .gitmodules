@@ -1,0 +1,3 @@
+[submodule "vendor/asset-management"]
+	path = vendor/asset-management
+	url = https://github.com/rubyh218/real-estate-asset-management.git

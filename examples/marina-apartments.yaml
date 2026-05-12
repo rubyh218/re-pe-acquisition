@@ -1,0 +1,86 @@
+# Sample multifamily deal — value-add Class B in a growing Sun Belt submarket.
+# Use as the test fixture for the underwriting engine.
+
+deal_id: marina-apts-2026
+deal_name: "Marina Apartments — Charlotte, NC"
+sponsor: "Acquirer Capital"
+
+property:
+  name: "Marina Apartments"
+  address: "1234 Marina Blvd, Charlotte, NC 28203"
+  submarket: "South End / Charlotte"
+  year_built: 1998
+  asset_class: multifamily
+  unit_mix:
+    - name: "1BR/1BA"
+      count: 80
+      sf: 720
+      in_place_rent: 1325    # current avg in-place
+      market_rent: 1450      # current market for similar product
+    - name: "2BR/2BA"
+      count: 100
+      sf: 1010
+      in_place_rent: 1650
+      market_rent: 1825
+    - name: "3BR/2BA"
+      count: 20
+      sf: 1280
+      in_place_rent: 2100
+      market_rent: 2275
+
+acquisition:
+  purchase_price: 42000000      # ~$210K/unit (200 units)
+  closing_costs_pct: 0.015      # 1.5% of price
+  initial_capex: 1500000        # day-1 (common areas, deferred maintenance)
+  day_one_reserves: 250000      # working capital
+  close_date: 2026-06-15
+
+revenue:
+  other_income_per_unit_mo: 75  # parking, fees, RUBS — annualized $900/unit
+  rent_growth: [0.05, 0.06, 0.04, 0.03, 0.03, 0.03]   # Yr 1..6 (need hold+1 for forward exit NOI)
+  other_income_growth: 0.03
+  vacancy: 0.07                 # higher Yr 1 due to value-add disruption; we use a flat avg
+  bad_debt: 0.015
+  concessions_yr1: 0.02         # 2% of GPR Yr 1, burns off thereafter (modeled flat for now)
+
+opex:
+  payroll_per_unit:    1100
+  rm_per_unit:          750
+  marketing_per_unit:   250
+  utilities_per_unit:   400
+  insurance_per_unit:   525     # SE coastal-adjacent, elevated
+  other_per_unit:       150     # admin, legal, misc
+  re_tax:             450000    # annual; will be re-assessed by county at sale
+  re_tax_growth:       0.04     # NC Mecklenburg trends
+  growth:              0.03
+  mgmt_fee_pct:        0.030
+
+capex:
+  value_add_per_unit:        12000        # interior reno per unit
+  units_renovated_pct:       [0.40, 0.40, 0.20]  # Yr 1, Yr 2, Yr 3
+  rent_premium_per_unit_mo:  175           # uplift on renovated units
+  common_area_capex:          750000       # lobby, fitness, pool deck (Year 1)
+  recurring_reserve_per_unit:  300
+
+debt:
+  rate:                0.0625      # 6.25% (agency multifamily, 2026 indicative)
+  term_yrs:            10
+  amort_yrs:           30
+  io_period_yrs:       3           # 3-yr IO period upfront
+  max_ltv:             0.65
+  min_dscr:            1.25
+  min_debt_yield:      0.08
+  origination_fee_pct: 0.0075      # 75 bps
+  lender_reserves:     150000
+
+equity:
+  pref_rate:        0.08
+  promote_pct:      0.20
+  gp_coinvest_pct:  0.10           # GP funds 10% of equity; gets co-invest pro-rata + promote
+  acq_fee_pct:      0.01           # 1% acquisition fee to GP
+
+exit:
+  hold_yrs:           5
+  exit_cap:           0.0575       # entry going-in cap typically + 25 bps spread; calibrated to submarket comps
+  cost_of_sale_pct:   0.015
+  exit_noi_basis:     forward      # exit cap applied to Year 6 NOI (forward)
