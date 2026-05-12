@@ -1,0 +1,76 @@
+# Example: select-service hotel acquisition with brand-mandated PIP.
+# Illustrative only. 120-key Hampton Inn in a Sunbelt secondary market,
+# 5-year hold, $1.5M PIP executed Yrs 1-2 with key displacement.
+
+deal_id: SUNBELT-HAMPTON-001
+deal_name: Hampton Inn Sunbelt
+sponsor: Acquirer
+
+property:
+  name: Hampton Inn Sunbelt
+  address: 1200 Airport Pkwy, Charlotte, NC 28208
+  submarket: Charlotte Airport
+  year_built: 2008
+  brand: Hampton Inn
+  flag_type: franchised
+  service_level: upper_midscale
+  keys: 120
+
+acquisition:
+  purchase_price: 14500000          # ~$121K / key (PIP-discounted basis)
+  closing_costs_pct: 0.015
+  initial_capex: 0                  # PIP is below the line (multi-year)
+  day_one_reserves: 250000
+  close_date: 2026-06-01
+
+operating:
+  adr_yr1: 155.00
+  adr_growth: 0.03
+  # Hold = 5 years, forward exit -> need 6 occupancy entries
+  occupancy: [0.72, 0.78, 0.80, 0.80, 0.80, 0.80]
+  rooms_expense_pct: 0.27           # rooms expense as % of rooms revenue
+  fb_revenue_pct_of_rooms: 0.08     # limited service (breakfast bar, meeting room rentals)
+  fb_margin: 0.18
+  other_revenue_pct_of_rooms: 0.05  # parking, sundries
+  other_margin: 0.40
+
+opex:
+  ga_par: 3500
+  sm_par: 4500
+  rm_par: 1800
+  utilities_par: 2800
+  franchise_fee_pct: 0.11           # Hilton franchise (royalty + program fees)
+  mgmt_fee_pct: 0.03
+  ffe_reserve_pct: 0.04             # institutional standard
+  re_tax: 180000
+  insurance_par: 800
+  undistributed_growth: 0.03
+  re_tax_growth: 0.03
+
+capex:
+  pip_total: 1500000
+  pip_schedule_pct: [0.6, 0.4]      # Yr 1 + Yr 2
+  pip_displacement_keys: [8, 6]     # avg keys out of inventory during PIP execution
+
+debt:
+  rate: 0.075
+  term_yrs: 5
+  amort_yrs: 30
+  io_period_yrs: 2
+  max_ltv: 0.60                     # lenders tighter on hospitality vs MF/CRE
+  min_dscr: 1.35
+  min_debt_yield: 0.10
+  origination_fee_pct: 0.01
+  lender_reserves: 200000
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.01
+
+exit:
+  hold_yrs: 5
+  exit_cap: 0.085                   # hospitality trades wider than MF/CRE
+  cost_of_sale_pct: 0.015
+  exit_noi_basis: forward
