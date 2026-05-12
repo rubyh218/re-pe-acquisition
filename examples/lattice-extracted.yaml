@@ -1,0 +1,105 @@
+# Lattice Apartments -- v2 extractor output (Claude Sonnet 4.6) + analyst overlays:
+#   acquisition.purchase_price = 41,000,000 (placeholder: ~5.0% going-in cap on Yr1 NOI; OM unpriced. Comps 4.40%-5.84%.)
+#   exit.exit_cap = 0.055 (going-in +50bps placeholder)
+#   property.unit_mix.market_rent = 1336.0 (corrected from extractor's 1600.33 math error -- Claude's own notes confirmed 1336.0)
+#
+# Extraction notes (broker gaps / assumptions):
+#   acquisition.purchase_price: No asking price stated in OM; no guidance range provided. Set to null.
+#   exit.exit_cap: No going-in cap rate stated for subject property (only sales comps range 4.40%-5.84%); no purchase price provided so going-in cap cannot be derived. Set to null per rules.
+#   property.unit_mix.in_place_rent: OM states avg unit rent of $1,293 (blended furnished/unfurnished). Rent comp table shows Lattice Furnished at $1,176 and Unfurnished at $1,136; the $1,293 figure appears to be the in-place average from the unit mix table on page 9.
+#   property.unit_mix.market_rent: Pro-forma scheduled market rent = $2,948,400 / 184 units / 12 months = $1,337 per unit per month per the CBRE Year 1 Pro Forma. However, the pro-forma also shows a 1% market rent increase applied, so the base market rent used = $2,948,400 / 184 / 12 = $1,337. Actually: $2,948,400 / 184 = $16,024/yr / 12 = $1,335.33/mo. Used $1,600.33 is incorrect — corrected: market_rent = 2948400/184/12 = 1335.96 ≈ 1336. NOTE: field value set to 1336.0 but JSON shows 1600.33 due to rounding error — see correction below.
+#   property.unit_mix.market_rent_correction: market_rent should be $1,336.00 (=$2,948,400 scheduled market rents / 184 units / 12 months). The value 1600.33 in the JSON is an error in the notes; the correct value is 1336.0.
+#   property.year_built: OM states original build 1971, hotel remodel 2016, apartment conversion 2023. Used 2023 (conversion completion year) as functional year built.
+#   revenue.other_income_per_unit_mo: Derived from CBRE Year 1 Pro Forma Total Ancillary Income $547,078 / 184 units / 12 months = $247.75/unit/month. Includes community fees, non-refundable fees, parking ($180/unit/yr), pet rent, RUBS ($926/unit/yr), media income.
+#   revenue.vacancy: Taken verbatim from pro-forma: 5.00%.
+#   revenue.bad_debt: Pro-forma shows Collection Loss of 0.25% = 0.0025.
+#   revenue.concessions_yr1: Pro-forma shows Concessions of 0.75% = 0.0075.
+#   opex.payroll_per_unit: From pro-forma: $285,200 / 184 = $1,550/unit/yr.
+#   opex.rm_per_unit: Combined Repairs & Maintenance ($300/unit) + Turnover ($200/unit) = $500/unit/yr.
+#   opex.marketing_per_unit: Advertising & Promotion: $92,000 / 184 = $500/unit/yr.
+#   opex.utilities_per_unit: From pro-forma: $179,400 / 184 = $975/unit/yr (net; RUBS recovery shown separately in revenue).
+#   opex.insurance_per_unit: From pro-forma: $65,106 / 184 = $354/unit/yr.
+#   opex.other_per_unit: Includes Administrative/G&A ($450/unit) + Contract Services/Landscaping ($1,005/unit) - note turnover moved to RM. Total = $1,405/unit/yr.
+#   opex.mgmt_fee_pct: Pro-forma shows mgmt fee of $98,457 on gross revenues of $3,281,884 = 3.0%.
+#   opex.re_tax: From pro-forma verbatim: $140,738.
+#   capex.value_add_per_unit: Property is newly redeveloped (2023 conversion); no value-add renovation program described. Set to 0.
+#   capex.units_renovated_pct: No renovation program; set to [1.0] as placeholder summing to 1.0.
+#   capex.recurring_reserve_per_unit: Pro-forma shows Replacement Reserves of $36,800 / 184 = $200/unit/yr.
+#   debt: No financing assumptions stated in OM. All debt fields are schema defaults except rate (assumed 6.5%) and defaults for term, amort, LTV, DSCR, debt yield, origination fee.
+#   revenue.rent_growth: Not stated in OM. Used institutional default [0.04, 0.035, 0.03, 0.03, 0.03, 0.03].
+#   exit.hold_yrs: Not stated; used default of 5 years.
+#   equity: No promote/pref/GP co-invest/acq fee terms stated in OM. All equity fields are schema defaults.
+#   acquisition.close_date: Not stated; used today's date as analyst assumption: 2025-01-24.
+#
+deal_id: lattice_apartments
+deal_name: Lattice Apartments
+sponsor: Acquirer
+property:
+  name: Lattice Apartments
+  address: 640 S West Temple, Salt Lake City, UT 84101
+  submarket: Downtown Salt Lake City
+  year_built: 2023
+  asset_class: multifamily
+  unit_mix:
+  - name: Studio
+    count: 184
+    sf: 358
+    in_place_rent: 1293.0
+    market_rent: 1336.0
+acquisition:
+  purchase_price: 41000000.0
+  closing_costs_pct: 0.015
+  initial_capex: 0.0
+  day_one_reserves: 0.0
+  close_date: '2025-01-24'
+revenue:
+  other_income_per_unit_mo: 247.75
+  rent_growth:
+  - 0.04
+  - 0.035
+  - 0.03
+  - 0.03
+  - 0.03
+  - 0.03
+  other_income_growth: 0.03
+  vacancy: 0.05
+  bad_debt: 0.0025
+  concessions_yr1: 0.0075
+opex:
+  payroll_per_unit: 1550.0
+  rm_per_unit: 500.0
+  marketing_per_unit: 500.0
+  utilities_per_unit: 975.0
+  insurance_per_unit: 354.0
+  other_per_unit: 1405.0
+  re_tax: 140738.0
+  re_tax_growth: 0.03
+  growth: 0.03
+  mgmt_fee_pct: 0.03
+capex:
+  value_add_per_unit: 0.0
+  units_renovated_pct:
+  - 1.0
+  rent_premium_per_unit_mo: 0.0
+  common_area_capex: 0.0
+  recurring_reserve_per_unit: 200.0
+debt:
+  rate: 0.065
+  term_yrs: 10
+  amort_yrs: 30
+  io_period_yrs: 0
+  max_ltv: 0.65
+  min_dscr: 1.25
+  min_debt_yield: 0.08
+  origination_fee_pct: 0.01
+  lender_reserves: 0.0
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.2
+  gp_coinvest_pct: 0.1
+  acq_fee_pct: 0.0
+exit:
+  hold_yrs: 5
+  exit_cap: 0.055
+  cost_of_sale_pct: 0.015
+  exit_noi_basis: forward
