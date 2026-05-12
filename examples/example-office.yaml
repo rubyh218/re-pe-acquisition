@@ -1,0 +1,124 @@
+# example-office.yaml — multi-tenant suburban office, illustrative.
+# Pattern: ~85% leased going in, mixed NNN / BYS leases, rollover during hold.
+
+deal_id: meridian_tower
+deal_name: Meridian Tower
+sponsor: Acquirer
+
+property:
+  name: Meridian Tower
+  address: 1500 Market Street, Philadelphia, PA 19102
+  submarket: CBD Philadelphia
+  year_built: 2002
+  asset_class: office
+  total_rba: 200000
+  general_vacancy_pct: 0.05
+  rent_roll:
+    - tenant: Apex Legal LLP
+      suite: "Suite 1200-1500"
+      sf: 60000
+      base_rent_psf: 32.00
+      lease_type: NNN
+      lease_start: 2021-07-01
+      lease_end: 2028-06-30      # rolls in Yr 3 of hold
+      escalation_pct: 0.025
+      free_rent_remaining_mo: 0
+    - tenant: Apex Legal LLP
+      suite: "Suite 1600"
+      sf: 15000
+      base_rent_psf: 30.00
+      lease_type: NNN
+      lease_start: 2022-01-01
+      lease_end: 2032-12-31
+      escalation_pct: 0.025
+      free_rent_remaining_mo: 0
+    - tenant: Northeast Capital
+      suite: "Suite 800-1000"
+      sf: 45000
+      base_rent_psf: 28.50
+      lease_type: BYS
+      lease_start: 2020-03-01
+      lease_end: 2027-02-28      # rolls in Yr 2
+      escalation_pct: 0.03
+      free_rent_remaining_mo: 0
+    - tenant: Foundry Tech
+      suite: "Suite 500-700"
+      sf: 35000
+      base_rent_psf: 26.00
+      lease_type: NNN
+      lease_start: 2024-06-01
+      lease_end: 2031-05-31
+      escalation_pct: 0.03
+      free_rent_remaining_mo: 3   # remaining free rent from recent lease
+    - tenant: GreenTree Wealth
+      suite: "Suite 400"
+      sf: 15000
+      base_rent_psf: 31.00
+      lease_type: BYS
+      lease_start: 2024-09-01
+      lease_end: 2029-08-31
+      escalation_pct: 0.03
+      free_rent_remaining_mo: 0
+
+acquisition:
+  purchase_price: 62000000
+  closing_costs_pct: 0.015
+  initial_capex: 500000          # lobby refresh
+  day_one_reserves: 250000
+  close_date: 2026-06-01
+
+market:
+  market_rent_psf: 34.00
+  market_rent_growth: 0.03
+  new_lease_term_yrs: 7
+  new_escalation_pct: 0.025
+  new_free_rent_mo: 6
+  new_ti_psf: 75.00
+  new_lc_pct: 0.06
+  downtime_mo: 9
+  renewal_lease_term_yrs: 5
+  renewal_escalation_pct: 0.025
+  renewal_free_rent_mo: 2
+  renewal_ti_psf: 25.00
+  renewal_lc_pct: 0.03
+  renewal_prob: 0.65
+
+opex:
+  cam_psf: 4.50
+  re_tax: 950000
+  insurance_psf: 0.80
+  utilities_psf: 1.20
+  non_recoverable_psf: 0.50
+  mgmt_fee_pct: 0.03
+  cam_growth: 0.03
+  re_tax_growth: 0.03
+  insurance_growth: 0.04
+  utilities_growth: 0.03
+  non_recoverable_growth: 0.03
+
+capex:
+  initial_building_capex: 750000   # HVAC upgrades, elevator modernization
+  recurring_reserve_psf: 0.25
+
+debt:
+  rate: 0.0675
+  term_yrs: 10
+  amort_yrs: 30
+  io_period_yrs: 2
+  max_ltv: 0.60
+  min_dscr: 1.30
+  min_debt_yield: 0.08
+  origination_fee_pct: 0.01
+  lender_reserves: 0
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.01
+
+exit:
+  hold_yrs: 5
+  exit_cap: 0.055
+  cost_of_sale_pct: 0.02
+  exit_noi_basis: forward
