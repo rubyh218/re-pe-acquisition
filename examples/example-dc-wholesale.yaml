@@ -1,0 +1,105 @@
+# example-dc-wholesale.yaml -- hyperscale wholesale data center acquisition.
+#
+# Pattern: multi-tenant Tier III campus in Northern Virginia (Ashburn submarket),
+# 36 MW critical IT, fully commissioned, ~89% leased to two hyperscale tenants
+# on long-dated leases. 5-yr hold, full power pass-through.
+
+deal_id: ashburn-dc-001
+deal_name: Ashburn Data Center I
+sponsor: Acquirer
+
+property:
+  name: Ashburn Data Center I
+  address: 21000 Beaumeade Cir, Ashburn, VA 20147
+  submarket: Northern Virginia (Ashburn)
+  year_built: 2019
+  asset_class: datacenter_wholesale
+  mw_critical: 36.0
+  mw_commissioned: 36.0
+  pue: 1.38
+  tier_rating: Tier III
+  total_gross_sf: 270000
+  contracts:
+    - tenant: Cloud Hyperscale Co.
+      suite: Phase 1 (Halls A-C)
+      mw_leased: 20.0
+      base_rent_kw_mo: 145.00          # $/kW/mo NVA hyperscale ~$135-155
+      lease_start: 2020-04-01
+      lease_end: 2032-03-31
+      escalation_pct: 0.025
+      free_rent_remaining_mo: 0
+      power_pass_through: full
+    - tenant: Federal Workload Inc.
+      suite: Phase 2 (Hall D-E)
+      mw_leased: 12.0
+      base_rent_kw_mo: 155.00          # Tier III/IV credit tenant commands premium
+      lease_start: 2022-10-01
+      lease_end: 2034-09-30
+      escalation_pct: 0.030
+      free_rent_remaining_mo: 0
+      power_pass_through: partial      # landlord earns ~5% margin
+
+acquisition:
+  purchase_price: 720000000            # ~$20M / MW, ~6.0% going-in
+  closing_costs_pct: 0.012
+  initial_capex: 2000000               # day-1 access upgrades, security
+  day_one_reserves: 1500000
+  close_date: 2026-06-01
+
+market:
+  market_rent_kw_mo: 165.00
+  market_rent_growth: 0.04             # NVA market growing on AI capacity squeeze
+  new_lease_term_yrs: 12
+  new_escalation_pct: 0.030
+  new_free_rent_mo: 0
+  new_ti_kw: 0                         # wholesale: no landlord TI
+  new_lc_pct: 0.04
+  downtime_mo: 6
+  renewal_lease_term_yrs: 10
+  renewal_escalation_pct: 0.025
+  renewal_free_rent_mo: 0
+  renewal_ti_kw: 0
+  renewal_lc_pct: 0.02
+  renewal_prob: 0.85                   # hyperscale stickiness in NVA
+  power_margin_multiplier: 1.05
+  utility_rate_kwh: 0.085              # NVA blended (Dominion mix)
+  utility_rate_growth: 0.04
+
+opex:
+  security_per_mw: 18000
+  mep_staffing_per_mw: 95000
+  insurance_per_mw: 9000
+  common_power_per_mw: 15000
+  non_recoverable_per_mw: 6000
+  re_tax: 4200000                      # Loudoun County
+  mgmt_fee_pct: 0.02
+  controllable_growth: 0.03
+  re_tax_growth: 0.03
+  insurance_growth: 0.05
+
+capex:
+  initial_building_capex: 0
+  recurring_reserve_per_mw: 22000      # UPS / generator / chiller cycle
+
+debt:
+  rate: 0.0625
+  term_yrs: 7
+  amort_yrs: 30
+  io_period_yrs: 3
+  max_ltv: 0.55                        # lenders disciplined on DC asset risk
+  min_dscr: 1.40
+  min_debt_yield: 0.08
+  origination_fee_pct: 0.01
+  lender_reserves: 500000
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.0075
+
+exit:
+  hold_yrs: 5
+  exit_cap: 0.060                      # DC trades sub-6% in NVA
+  cost_of_sale_pct: 0.012
+  exit_noi_basis: forward

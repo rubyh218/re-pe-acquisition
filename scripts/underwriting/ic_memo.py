@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import scripts  # noqa: F401
 from docx import Document
@@ -69,6 +70,25 @@ class CommercialMemoBlock:
     # (year, sf_rolling, pct_of_rba, in_place_rent, market_rent_at_roll, mtm_pct)
 
 
+@dataclass
+class DCMemoBlock:
+    """Data-center-specific tables + negotiation playbook.
+
+    `kind` selects which leasing-tactics subset is rendered. `tenancy_rows` is a
+    free-form list of (label, value) pairs for the tenancy snapshot table --
+    wholesale shows MW utilization + per-contract; colo shows cabinet mix +
+    occupancy ramp.
+    """
+    kind: Literal["wholesale", "colo"]
+    tenancy_rows: list[tuple[str, str]]
+    rollover: list[tuple[int, float, float, float, float]] | None
+    # wholesale only: (year, mw_rolling, in_place_rent, market_rent_at_roll, mtm_pct)
+    top_contracts: list[tuple[str, float, float, float, str, str]] | None
+    # wholesale only: (tenant, mw, $/kW/mo, annual_rent, lease_end_iso, pass_through)
+    cabinet_mix: list[tuple[str, int, float, float, float, float]] | None
+    # colo only: (name, count, kw/cab, total_kw, in_place_mrr, market_mrr)
+
+
 # ---------------------------------------------------------------------------
 # Formatters
 # ---------------------------------------------------------------------------
@@ -104,6 +124,7 @@ def write_ic_memo(
     revenue_label: str = "Revenue",
     preparer: str = "Acquisitions",
     commercial: CommercialMemoBlock | None = None,
+    datacenter: DCMemoBlock | None = None,
 ) -> Path:
     """Render the IC memo as a docx at `out_path`."""
     doc = Document()
@@ -221,6 +242,57 @@ def write_ic_memo(
             ],
             numeric_cols=[1, 2, 3, 4, 5],
         )
+
+    # ---- 2b. Data Center tenancy / capacity ----
+    if datacenter is not None:
+        heading = (
+            "2a. Tenancy & Power Capacity" if datacenter.kind == "wholesale"
+            else "2a. Cabinet Mix & Lease-Up"
+        )
+        add_heading(doc, heading, level=1)
+        add_table(
+            doc,
+            headers=["Item", "Value"],
+            rows=[list(row) for row in datacenter.tenancy_rows],
+            numeric_cols=[1],
+        )
+        if datacenter.kind == "wholesale" and datacenter.top_contracts:
+            add_para(doc, "Contract roster (top contracts by MW):")
+            add_table(
+                doc,
+                headers=["Tenant", "MW", "$/kW/mo", "Annual Rent", "Lease End", "Pass-Thru"],
+                rows=[
+                    [t, f"{mw:.2f}", f"${rate:.2f}", _fmt_dollar(ann), end, pt]
+                    for (t, mw, rate, ann, end, pt) in datacenter.top_contracts
+                ],
+                numeric_cols=[1, 2, 3],
+            )
+            if datacenter.rollover:
+                add_para(doc, "Rollover schedule (lease expirations during hold):")
+                add_table(
+                    doc,
+                    headers=["Year", "MW Rolling", "In-Place Rent",
+                             "Market Rent at Roll", "MTM Spread"],
+                    rows=[
+                        [f"Yr {yr}", f"{mw:.2f}", _fmt_dollar(ip),
+                         _fmt_dollar(mk), _fmt_pct(mtm, 1)]
+                        for (yr, mw, ip, mk, mtm) in datacenter.rollover
+                    ],
+                    numeric_cols=[1, 2, 3, 4],
+                )
+        if datacenter.kind == "colo" and datacenter.cabinet_mix:
+            add_para(doc, "Cabinet inventory (in-place vs. market MRR):")
+            add_table(
+                doc,
+                headers=["Cabinet Type", "Count", "kW / Cab", "Total kW",
+                         "In-Place MRR", "Market MRR"],
+                rows=[
+                    [n, f"{c:,}", f"{kw:.1f}", f"{tkw:,.0f}",
+                     _fmt_dollar(ip), _fmt_dollar(mk)]
+                    for (n, c, kw, tkw, ip, mk) in datacenter.cabinet_mix
+                ],
+                numeric_cols=[1, 2, 3, 4, 5],
+            )
 
     # ---- 3. Transaction Structure ----
     add_heading(doc, "3. Transaction Structure", level=1)
@@ -356,6 +428,35 @@ def write_ic_memo(
         "Operating risk — expense inflation, tax reassessment, insurance hardening.",
         "Sponsor / counterparty risk — operator quality, GP track record.",
     ])
+
+    # ---- 9. Negotiation Playbook (DC only) ----
+    if datacenter is not None:
+        from .datacenter.negotiation import (
+            acquisition_table_rows,
+            leasing_table_rows,
+        )
+        add_heading(doc, "9. Negotiation Playbook", level=1)
+        add_para(
+            doc,
+            "Institutional negotiation tactics tailored for data center "
+            "transactions. The acquisition catalog covers LOI / PSA / closing "
+            "levers; the leasing catalog covers post-close lease execution "
+            f"({datacenter.kind})."
+        )
+        add_heading(doc, "9a. Acquisition Tactics", level=2)
+        add_table(
+            doc,
+            headers=["Tactic", "Category", "Lever", "Typical Range", "Rationale"],
+            rows=acquisition_table_rows(),
+            numeric_cols=[],
+        )
+        add_heading(doc, "9b. Leasing Tactics", level=2)
+        add_table(
+            doc,
+            headers=["Tactic", "Category", "Lever", "Typical Range", "Rationale"],
+            rows=leasing_table_rows(datacenter.kind),
+            numeric_cols=[],
+        )
 
     add_source(
         doc,
@@ -498,7 +599,110 @@ def _build_hospitality(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLin
     return payload, years
 
 
-def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, CommercialMemoBlock | None]:
+def _build_dc_wholesale(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], DCMemoBlock]:
+    from .datacenter.models import load_dc_wholesale_deal
+    from .datacenter.wholesale_pro_forma import build_wholesale_pro_forma
+    from .waterfall_acq import run_acquisition_waterfall
+    deal = load_dc_wholesale_deal(deal_path)
+    pf = build_wholesale_pro_forma(deal)
+    wf = run_acquisition_waterfall(pf)
+    payload = build_payload(
+        pf=pf, wf=wf,
+        asset_class="Data Center (Wholesale)",
+        denom_label="Critical MW",
+        denom_value=deal.property.mw_critical,
+        per_denom_label="/MW",
+        per_denom_fmt="dollar",
+        value_add_capex_total=0.0,
+    )
+    years = [
+        MemoYearLine(
+            year=yl.year, revenue=yl.egi, opex=yl.total_opex,
+            noi=yl.noi, ncf_unlevered=yl.ncf_unlevered, ncf_levered=yl.ncf_levered,
+        )
+        for yl in pf.years
+    ]
+    prop = deal.property
+    tenancy = [
+        ("Critical MW",         f"{prop.mw_critical:.2f}"),
+        ("Commissioned MW",     f"{prop.mw_commissioned:.2f}"),
+        ("Leased MW (in-place)",f"{prop.leased_mw:.2f}"),
+        ("Utilization",         _fmt_pct(prop.utilization_pct, 1)),
+        ("PUE",                 f"{prop.pue:.2f}"),
+        ("Tier Rating",         prop.tier_rating),
+        ("In-Place Annual Rent",_fmt_dollar(prop.in_place_annual_rent)),
+        ("# Contracts",         f"{len(prop.contracts)}"),
+    ]
+    top_contracts = sorted(prop.contracts, key=lambda c: -c.mw_leased)[:8]
+    top_rows = [
+        (c.tenant, c.mw_leased, c.base_rent_kw_mo, c.annual_base_rent,
+         c.lease_end.isoformat(), c.power_pass_through)
+        for c in top_contracts
+    ]
+    rollover_rows = [
+        (ro.year, ro.mw_rolling, ro.in_place_rent_rolling,
+         ro.market_rent_at_roll, ro.mtm_spread_pct)
+        for ro in pf.rollover_schedule if ro.mw_rolling > 0
+    ]
+    block = DCMemoBlock(
+        kind="wholesale", tenancy_rows=tenancy,
+        rollover=rollover_rows, top_contracts=top_rows, cabinet_mix=None,
+    )
+    return payload, years, block
+
+
+def _build_dc_colo(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], DCMemoBlock]:
+    from .datacenter.colo_pro_forma import build_colo_pro_forma
+    from .datacenter.models import load_dc_colo_deal
+    from .waterfall_acq import run_acquisition_waterfall
+    deal = load_dc_colo_deal(deal_path)
+    pf = build_colo_pro_forma(deal)
+    wf = run_acquisition_waterfall(pf)
+    fit_out_total = (
+        deal.capex.fit_out_per_cabinet * deal.property.total_cabinets
+        if deal.capex.fit_out_per_cabinet > 0 else 0.0
+    )
+    payload = build_payload(
+        pf=pf, wf=wf,
+        asset_class="Data Center (Colocation)",
+        denom_label="Cabinets",
+        denom_value=deal.property.total_cabinets,
+        per_denom_label="/Cabinet",
+        per_denom_fmt="dollar",
+        value_add_capex_total=fit_out_total,
+    )
+    years = [
+        MemoYearLine(
+            year=yl.year, revenue=yl.egi,
+            opex=yl.total_opex, noi=yl.noi,
+            ncf_unlevered=yl.ncf_unlevered, ncf_levered=yl.ncf_levered,
+        )
+        for yl in pf.years
+    ]
+    prop = deal.property
+    occ_str = " / ".join(f"{o*100:.0f}%" for o in deal.revenue.occupancy[: deal.exit.hold_yrs + 1])
+    tenancy = [
+        ("Critical MW",        f"{prop.mw_critical:.2f}"),
+        ("PUE",                f"{prop.pue:.2f}"),
+        ("Tier Rating",        prop.tier_rating),
+        ("Total Cabinets",     f"{prop.total_cabinets:,}"),
+        ("Total Contracted kW",f"{prop.total_contracted_kw:,.0f}"),
+        ("In-Place Gross Rent",_fmt_dollar(prop.in_place_gross_rent)),
+        ("Market Gross Rent",  _fmt_dollar(prop.market_gross_rent)),
+        ("Occupancy Ramp",     occ_str),
+    ]
+    cab_rows = [
+        (c.name, c.count, c.kw_per_cabinet, c.total_kw, c.in_place_mrr, c.market_mrr)
+        for c in prop.cabinet_mix
+    ]
+    block = DCMemoBlock(
+        kind="colo", tenancy_rows=tenancy,
+        rollover=None, top_contracts=None, cabinet_mix=cab_rows,
+    )
+    return payload, years, block
+
+
+def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, CommercialMemoBlock | None, DCMemoBlock | None]:
     """Detect asset class from YAML, dispatch to correct engine.
 
     Returns (payload, year_lines, revenue_label, commercial_block_or_None).
@@ -516,18 +720,32 @@ def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, 
         elif "rent_roll" in raw or "leases" in raw:
             asset_class = "office"
 
+    # Datacenter auto-detect fallback if no explicit asset_class
+    if not asset_class:
+        if "contracts" in prop:
+            asset_class = "datacenter_wholesale"
+        elif "cabinet_mix" in prop:
+            asset_class = "datacenter_colo"
+
     if asset_class == "multifamily":
         payload, years = _build_mf(deal_path)
-        return payload, years, "EGI", None
+        return payload, years, "EGI", None, None
     if asset_class in {"office", "industrial", "retail"}:
         payload, years, block = _build_commercial(deal_path)
-        return payload, years, "EGI", block
+        return payload, years, "EGI", block, None
     if asset_class == "hospitality":
         payload, years = _build_hospitality(deal_path)
-        return payload, years, "Total Revenue", None
+        return payload, years, "Total Revenue", None, None
+    if asset_class == "datacenter_wholesale":
+        payload, years, dc_block = _build_dc_wholesale(deal_path)
+        return payload, years, "EGI", None, dc_block
+    if asset_class == "datacenter_colo":
+        payload, years, dc_block = _build_dc_colo(deal_path)
+        return payload, years, "EGI", None, dc_block
     raise ValueError(
         f"unknown asset_class '{asset_class}' in {deal_path}. "
-        f"Expected: multifamily / office / industrial / retail / hospitality."
+        f"Expected: multifamily / office / industrial / retail / hospitality "
+        f"/ datacenter_wholesale / datacenter_colo."
     )
 
 
@@ -566,9 +784,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    payload, years, revenue_label, commercial = _dispatch(args.deal)
+    payload, years, revenue_label, commercial, datacenter = _dispatch(args.deal)
     out = Path(args.output) if args.output else Path("outputs") / f"{payload.deal_id}-ic-memo.docx"
-    write_ic_memo(payload, years, out, revenue_label=revenue_label, preparer=args.preparer, commercial=commercial)
+    write_ic_memo(
+        payload, years, out,
+        revenue_label=revenue_label, preparer=args.preparer,
+        commercial=commercial, datacenter=datacenter,
+    )
     _print_status(payload, out)
     return 0
 

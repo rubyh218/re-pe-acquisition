@@ -1,0 +1,115 @@
+# example-dc-colo.yaml -- retail colocation data center acquisition.
+#
+# Pattern: 12 MW Tier III retail colo in a Tier-2 metro (Atlanta), ~1,500 cabinets
+# across 6 SKUs from half-cabinets to high-density AI cabinets. ~10.6 MW contracted
+# out of 12 MW critical IT (88% subscription -- institutional norm for retail colo).
+# Value-add: refresh + selective HD upgrades across inventory over a 3-yr ramp.
+# 5-yr hold, occupancy ramp 72% -> 88%.
+
+deal_id: atlanta-colo-001
+deal_name: Atlanta Tech Center
+sponsor: Acquirer
+
+property:
+  name: Atlanta Tech Center
+  address: 56 Marietta St NW, Atlanta, GA 30303
+  submarket: Atlanta Metro
+  year_built: 2014
+  asset_class: datacenter_colo
+  mw_critical: 12.0
+  pue: 1.55
+  tier_rating: Tier III
+  total_gross_sf: 95000
+  cabinet_mix:
+    - name: Half Cabinet
+      count: 200
+      kw_per_cabinet: 2.0
+      in_place_mrr: 450
+      market_mrr: 525
+    - name: Standard 5kW
+      count: 600
+      kw_per_cabinet: 5.0
+      in_place_mrr: 900
+      market_mrr: 1050
+    - name: Standard 7kW
+      count: 350
+      kw_per_cabinet: 7.0
+      in_place_mrr: 1200
+      market_mrr: 1400
+    - name: High-Density 10kW
+      count: 200
+      kw_per_cabinet: 10.0
+      in_place_mrr: 1600
+      market_mrr: 1900
+    - name: High-Density 15kW
+      count: 100
+      kw_per_cabinet: 15.0
+      in_place_mrr: 2200
+      market_mrr: 2700
+    - name: AI / Liquid-Cooled 25kW
+      count: 50
+      kw_per_cabinet: 25.0
+      in_place_mrr: 3400
+      market_mrr: 4200
+
+acquisition:
+  purchase_price: 210000000           # ~$140K / cabinet, ~$17.5M / MW, ~7% going-in
+  closing_costs_pct: 0.015
+  initial_capex: 500000
+  day_one_reserves: 750000
+  close_date: 2026-06-01
+
+revenue:
+  occupancy: [0.72, 0.78, 0.83, 0.86, 0.88, 0.88]
+  mrr_growth: 0.035
+  bad_debt: 0.015                     # retail customers, slightly higher credit loss
+  concessions_yr1: 0.02
+  xc_per_cabinet: 2.5
+  xc_mrr_each: 350
+  xc_mrr_growth: 0.03
+  other_income_per_cabinet_mo: 175
+  other_income_growth: 0.03
+
+opex:
+  utility_rate_kwh: 0.095             # Georgia Power blended
+  utility_rate_growth: 0.03
+  pue_uplift: 1.55
+  payroll_per_cabinet: 750
+  rm_per_cabinet: 450
+  marketing_per_cabinet: 200
+  insurance_per_cabinet: 110
+  other_per_cabinet: 225
+  re_tax: 850000
+  re_tax_growth: 0.03
+  mgmt_fee_pct: 0.04
+  controllable_growth: 0.03
+
+capex:
+  fit_out_per_cabinet: 5000            # blended refresh + targeted HD upgrade across inventory
+  cabinets_renovated_pct: [0.40, 0.35, 0.25, 0.0, 0.0, 0.0]    # full inventory refresh over Yrs 1-3
+  mrr_uplift_per_cabinet: 100          # blended MRR uplift on refit cabinets (~9% on avg MRR)
+  common_capex: 600000                 # Yr 1 power / cooling upgrade
+  recurring_reserve_per_cabinet: 450
+
+debt:
+  rate: 0.0675                         # colo trades wider than wholesale (retail credit risk)
+  term_yrs: 5
+  amort_yrs: 30
+  io_period_yrs: 2
+  max_ltv: 0.60
+  min_dscr: 1.30
+  min_debt_yield: 0.09
+  origination_fee_pct: 0.01
+  lender_reserves: 250000
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.0100
+
+exit:
+  hold_yrs: 5
+  exit_cap: 0.075                      # colo trades wider than wholesale
+  cost_of_sale_pct: 0.015
+  exit_noi_basis: forward
