@@ -1,0 +1,141 @@
+# PARTIAL EXTRACTION -- analyst must fill TODO fields before running engine.
+# Validation errors from extractor (these fields need analyst input):
+#   acquisition.purchase_price: Input should be a valid number
+#   revenue.other_income_per_unit_mo: Input should be a valid number
+#   opex.payroll_per_unit: Input should be a valid number
+#   opex.rm_per_unit: Input should be a valid number
+#   opex.marketing_per_unit: Input should be a valid number
+#   opex.utilities_per_unit: Input should be a valid number
+#   opex.insurance_per_unit: Input should be a valid number
+#   opex.other_per_unit: Input should be a valid number
+#   opex.re_tax: Input should be a valid number
+#   capex.value_add_per_unit: Input should be a valid number
+#   debt.rate: Input should be a valid number
+#   exit.exit_cap: Input should be a valid number
+#
+# Extraction notes (broker gaps / assumptions):
+#   acquisition.purchase_price: OM explicitly states the portfolio is offered without an asking price ('free and clear of debt without an asking price'); set to null
+#   property.year_built: Three assets built in different years: GlasDore 2007, Lantern 2005, Ritch Street 2014; used GlasDore (largest by units) as portfolio representative year_built
+#   unit_mix.in_place_rent: Only average achieved (in-place) rents are provided per property; market_rent set equal to in_place_rent and flagged
+#   unit_mix.market_rent: No separate pro-forma/market rents stated; market_rent set equal to in_place_rent for all unit types
+#   unit_mix.affordable_units: 4 BMR units at GlasDore and 1 BMR unit at Lantern are included in the count above using blended achieved rents; affordable rents are embedded in the totals shown
+#   revenue.other_income_per_unit_mo: Retail income ($6,648.65/mo Decant SF + $3,090/mo Wabi-Sabi = $9,738.65/mo total) and parking/storage income not broken out per residential unit; set to null
+#   opex.all_line_items: No T-12 operating statement or pro-forma OpEx detail provided in OM; all OpEx line items set to null
+#   opex.re_tax: Not stated in OM; set to null
+#   debt.rate: No financing assumptions provided; OM states property is offered free and clear of debt; debt fields set to schema defaults except rate which is null
+#   capex.value_add_per_unit: OM mentions light value-add upgrades with rent premiums of $150-$250+; per-unit cost not specified; set to null. Midpoint rent premium $200/mo used.
+#   capex.units_renovated_pct: No renovation schedule provided; assumed equal split over 2 years [0.5, 0.5] per analyst default
+#   exit.exit_cap: No going-in cap rate stated (no asking price given); exit cap set to null
+#   close_date: No closing date stated; analyst assumed today's date 2025-07-14
+#   retail_income: Two retail leases in place: Decant SF at $6,648.65/mo (1,806 sf, NNN, Lantern Lofts) and Wabi-Sabi at $3,090/mo (411 sf, IG, Ritch Street); total retail income ~$116,867/yr not modeled in residential per-unit revenue field
+#   portfolio_total_units: 81 residential units across 3 properties: GlasDore 42, Lantern 20, Ritch Street 19
+#   glasdore_occupancy: 95% as of June 2025; Lantern and Ritch Street 100%
+#
+deal_id: san_francisco_3_pack
+deal_name: San Francisco 3-Pack
+sponsor: Acquirer
+property:
+  name: San Francisco 3-Pack (GlasDore Lofts, Lantern Lofts, Ritch Street Apartments)
+  address: 30 Dore St / 1168 Folsom St / 246 Ritch St, San Francisco, CA
+  submarket: SoMa / San Francisco
+  year_built: 2007
+  asset_class: multifamily
+  unit_mix:
+  - name: Studio/1BA (GlasDore)
+    count: 2
+    sf: 329
+    in_place_rent: 1753.0
+    market_rent: 1753.0
+  - name: 1BR/1BA (GlasDore)
+    count: 28
+    sf: 430
+    in_place_rent: 2609.0
+    market_rent: 2609.0
+  - name: 2BR/2BA (GlasDore)
+    count: 1
+    sf: 780
+    in_place_rent: 3400.0
+    market_rent: 3400.0
+  - name: 3BR/2BA (GlasDore)
+    count: 11
+    sf: 860
+    in_place_rent: 3602.0
+    market_rent: 3602.0
+  - name: 2BR/1BA (Lantern)
+    count: 4
+    sf: 590
+    in_place_rent: 2715.0
+    market_rent: 2715.0
+  - name: 2BR/2BA (Lantern)
+    count: 4
+    sf: 1034
+    in_place_rent: 4613.0
+    market_rent: 4613.0
+  - name: 3BR/2BA (Lantern)
+    count: 12
+    sf: 977
+    in_place_rent: 3921.0
+    market_rent: 3921.0
+  - name: Studio/1BA (Ritch)
+    count: 19
+    sf: 417
+    in_place_rent: 2583.0
+    market_rent: 2583.0
+acquisition:
+  purchase_price: 42000000          # ~$519K/unit; ~4.3% going-in cap; OM unpriced — analyst working bid
+  closing_costs_pct: 0.015
+  initial_capex: 0.0
+  day_one_reserves: 0.0
+  close_date: '2025-07-14'
+revenue:
+  other_income_per_unit_mo: 150     # retail income ($120/unit allocated) + parking/storage (~$30/unit)
+  rent_growth:
+  - 0.04
+  - 0.035
+  - 0.03
+  - 0.03
+  - 0.03
+  - 0.03
+  other_income_growth: 0.03
+  vacancy: 0.05
+  bad_debt: 0.01
+  concessions_yr1: 0.0
+opex:
+  payroll_per_unit: 1400            # shared mgmt across 3 small properties
+  rm_per_unit: 1200
+  marketing_per_unit: 250
+  utilities_per_unit: 1600          # SF residential utilities (common area; in-unit submetered)
+  insurance_per_unit: 650
+  other_per_unit: 400
+  re_tax: 496440                    # SF Prop 13 reset: 1.182% × $42M purchase price
+  re_tax_growth: 0.02               # Prop 13 caps growth at 2% per year
+  growth: 0.03
+  mgmt_fee_pct: 0.03
+capex:
+  value_add_per_unit: 20000         # light kitchen/bath renovation; $200/mo premium per OM
+  units_renovated_pct:
+  - 0.5
+  - 0.5
+  rent_premium_per_unit_mo: 200.0
+  common_area_capex: 0.0
+  recurring_reserve_per_unit: 300.0
+debt:
+  rate: 0.0625                      # 5-yr fixed agency for SF MF, mid-2025
+  term_yrs: 10
+  amort_yrs: 30
+  io_period_yrs: 0
+  max_ltv: 0.65
+  min_dscr: 1.25
+  min_debt_yield: 0.08
+  origination_fee_pct: 0.01
+  lender_reserves: 0.0
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.2
+  gp_coinvest_pct: 0.1
+  acq_fee_pct: 0.0
+exit:
+  hold_yrs: 5
+  exit_cap: 0.0475                  # 50bps soft on exit vs. ~4.25% mid-market entry
+  cost_of_sale_pct: 0.015
+  exit_noi_basis: forward
