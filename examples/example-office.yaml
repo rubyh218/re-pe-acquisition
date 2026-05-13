@@ -59,6 +59,7 @@ property:
       lease_end: 2029-08-31
       escalation_pct: 0.03
       free_rent_remaining_mo: 0
+      expense_stop_psf: 9.50          # analyst spec — building-wide $/SF cap; tenant pays pro-rata of pool over $9.50/SF
 
 acquisition:
   purchase_price: 62000000

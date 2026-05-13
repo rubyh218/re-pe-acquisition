@@ -329,12 +329,16 @@ def lease_cash_flow(
     renewal_segs, renewal_dts = _build_segments(lease, market, close_date, hold_end, "renewal")
     new_segs, new_dts = _build_segments(lease, market, close_date, hold_end, "new")
 
-    # Base-year recoverables for BYS: default to Yr 1 pool × pro_rata if not stated.
+    # Base-year recoverables for BYS: derive building-wide pool stop.
+    # Priority: explicit base_year_recoverables (tenant-$) > expense_stop_psf alias
+    # (building-$/SF) > default to Yr 1 actual pool.
     if lease.lease_type == "BYS":
         if lease.base_year_recoverables is not None:
             base_year_pool = lease.base_year_recoverables / (
                 lease.pro_rata_share if lease.pro_rata_share is not None else (lease.sf / total_rba)
             )
+        elif lease.expense_stop_psf is not None:
+            base_year_pool = lease.expense_stop_psf * total_rba
         else:
             base_year_pool = recoverable_pool_total(opex, total_rba, 1)
     else:

@@ -52,7 +52,8 @@ class Lease(_Frozen):
     escalation_pct: float = Field(default=0.03, ge=0, le=0.15)
     free_rent_remaining_mo: int = Field(default=0, ge=0)
     pro_rata_share: float | None = Field(default=None, ge=0, le=1.0)  # if None, derived as sf / total_rba
-    base_year_recoverables: float | None = Field(default=None, ge=0)  # BYS only; if None and BYS, set to Yr1 recoverable pool × pro_rata_share
+    base_year_recoverables: float | None = Field(default=None, ge=0)  # BYS only; tenant-share $ amount of base-year recoverable pool
+    expense_stop_psf: float | None = Field(default=None, ge=0)        # BYS only; $/SF expense stop (alias for base_year_recoverables — analyst-friendlier spec). Building-wide pool stop = expense_stop_psf * total_rba.
 
     # Optional per-lease overrides of Market defaults (otherwise inherit)
     market_rent_psf_override: float | None = Field(default=None, gt=0)
@@ -67,6 +68,14 @@ class Lease(_Frozen):
     def _check_dates(self):
         if self.lease_end <= self.lease_start:
             raise ValueError(f"{self.tenant}: lease_end must be after lease_start")
+        return self
+
+    @model_validator(mode="after")
+    def _check_expense_stop_alias(self):
+        if self.base_year_recoverables is not None and self.expense_stop_psf is not None:
+            raise ValueError(
+                f"{self.tenant}: specify either base_year_recoverables or expense_stop_psf, not both"
+            )
         return self
 
 
