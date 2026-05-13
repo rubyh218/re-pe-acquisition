@@ -297,7 +297,10 @@ def build_pro_forma(deal: Deal) -> ProForma:
 
     # --- Going-in / stabilized metrics ---
     going_in_cap = years_with_debt[0].noi / deal.acquisition.purchase_price
-    stabilized_idx = min(2, len(years_with_debt) - 1)  # Year 3 stabilized, or last if shorter
+    if deal.exit.stab_yr is not None:
+        stabilized_idx = min(deal.exit.stab_yr - 1, len(years_with_debt) - 1)
+    else:
+        stabilized_idx = min(2, len(years_with_debt) - 1)  # Year 3 stabilized, or last if shorter
     stabilized_cap = years_with_debt[stabilized_idx].noi / deal.acquisition.purchase_price
     all_in_basis = total_uses
     all_in_basis_per_unit = all_in_basis / units

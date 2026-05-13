@@ -193,6 +193,11 @@ class Exit(_Frozen):
     exit_cap:           float = Field(gt=0, lt=0.20)
     cost_of_sale_pct:   float = Field(default=0.015, ge=0, le=0.05)
     exit_noi_basis:     Literal["trailing", "forward"] = "forward"  # forward = NOI of year hold+1
+    # Manual stabilization-year override (1-indexed). When set, the engine
+    # reports the cap rate / 3-basis ROC at this year instead of its default.
+    # Commercial engine auto-picks the first low-rollover year when unset;
+    # other engines fall back to min(Yr 3, hold).
+    stab_yr:            int | None = Field(default=None, ge=1, le=15)
 
 
 # ---------------------------------------------------------------------------

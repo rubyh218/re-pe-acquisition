@@ -34,7 +34,7 @@ def _print_summary(pf, wf):
     print(f"  {'  per SF':<32} ${pf.all_in_basis_per_sf:>16,.2f}")
     print(bar)
     print(f"  {'Going-In Cap':<32} {pf.going_in_cap*100:>16.2f}%")
-    print(f"  {'Yr 3 Stabilized Cap':<32} {pf.stabilized_cap*100:>16.2f}%")
+    print(f"  {'Yr ' + str(pf.roc.stab_yr) + ' Stabilized Cap':<32} {pf.stabilized_cap*100:>16.2f}%")
     print(f"  {'Exit Cap':<32} {deal.exit.exit_cap*100:>16.2f}%")
     print(bar)
     s = pf.sizing

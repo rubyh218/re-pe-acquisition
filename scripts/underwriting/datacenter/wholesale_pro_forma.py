@@ -533,7 +533,10 @@ def build_wholesale_pro_forma(deal: DCWholesaleDeal) -> WholesaleProForma:
 
     # --- 6. Metrics ---
     going_in_cap = pre_debt[0].noi / deal.acquisition.purchase_price
-    stab_idx = min(2, len(pre_debt) - 1)
+    if deal.exit.stab_yr is not None:
+        stab_idx = min(deal.exit.stab_yr - 1, len(pre_debt) - 1)
+    else:
+        stab_idx = min(2, len(pre_debt) - 1)
     stabilized_cap = pre_debt[stab_idx].noi / deal.acquisition.purchase_price
     all_in_basis_per_mw = total_uses / prop.mw_critical
 

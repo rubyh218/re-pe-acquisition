@@ -406,7 +406,7 @@ def _write_returns(wb: Workbook, pf: CommercialProForma, wf: WaterfallResult):
     r += 1; write_section(ws, r, "Returns"); r += 2
     for label, val, fmt in [
         ("Going-In Cap", pf.going_in_cap, "pct2"),
-        ("Yr 3 Stabilized Cap", pf.stabilized_cap, "pct2"),
+        (f"Yr {pf.roc.stab_yr} Stabilized Cap", pf.stabilized_cap, "pct2"),
         ("Total Equity IRR (project)", wf.total_equity_irr, "pct2"),
         ("Total Equity MOIC", wf.total_equity_moic, "multiple"),
         ("LP Net IRR", wf.lp.irr, "pct2"),

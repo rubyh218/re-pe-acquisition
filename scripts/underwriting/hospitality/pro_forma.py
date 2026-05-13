@@ -275,7 +275,10 @@ def build_hotel_pro_forma(deal: HotelDeal) -> HotelProForma:
 
     # --- Metrics ---
     going_in_cap = pre_debt[0].noi / deal.acquisition.purchase_price
-    stabilized_idx = min(2, len(pre_debt) - 1)
+    if deal.exit.stab_yr is not None:
+        stabilized_idx = min(deal.exit.stab_yr - 1, len(pre_debt) - 1)
+    else:
+        stabilized_idx = min(2, len(pre_debt) - 1)
     stabilized_cap = pre_debt[stabilized_idx].noi / deal.acquisition.purchase_price
     all_in_basis_per_key = total_uses / prop.keys
 

@@ -241,7 +241,29 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
 
     # --- 6. Metrics ---
     going_in_cap = pre_debt[0].noi / deal.acquisition.purchase_price
-    stabilized_idx = min(2, len(pre_debt) - 1)
+
+    # Pick stabilization year:
+    #   1) Honor explicit Exit.stab_yr if set.
+    #   2) Else auto-pick first year (within hold) with rollover_sf / RBA < 5%
+    #      AND year >= 2 (Yr 1 is in-place, never "stabilized" yet).
+    #   3) Else fall back to min(Yr 3, hold).
+    rba = prop.total_rba
+    rolling_sf_by_yr = [
+        sum(lys[y_idx].rolling_sf for lys in per_lease.values())
+        for y_idx in range(len(pre_debt))
+    ]
+    if deal.exit.stab_yr is not None:
+        stabilized_idx = min(deal.exit.stab_yr - 1, len(pre_debt) - 1)
+    else:
+        low_rollover_idx = next(
+            (i for i in range(1, min(hold, len(pre_debt)))
+             if rba > 0 and (rolling_sf_by_yr[i] / rba) < 0.05),
+            None,
+        )
+        if low_rollover_idx is not None:
+            stabilized_idx = low_rollover_idx
+        else:
+            stabilized_idx = min(2, len(pre_debt) - 1)
     stabilized_cap = pre_debt[stabilized_idx].noi / deal.acquisition.purchase_price
     all_in_basis_per_sf = total_uses / prop.total_rba
 
