@@ -89,6 +89,21 @@ class DCMemoBlock:
     # colo only: (name, count, kw/cab, total_kw, in_place_mrr, market_mrr)
 
 
+@dataclass
+class InfraMemoBlock:
+    """Infrastructure-specific tables: generation profile, revenue stream roster,
+    contracted-vs-merchant mix by year, and tax credits.
+    """
+    summary_rows: list[tuple[str, str]]
+    # (label, value): technology, market, nameplate, CF, realized CF, net gen Yr1, # streams, Yr-1 contracted share
+    stream_rows: list[tuple[str, str, str, str, str, str, float]]
+    # (label, kind, counterparty (+rating), term, headline_rate, allotment, yr1_revenue)
+    mix_rows: list[tuple[int, float, float, float, float, float, float]]
+    # (year, ppa_rev, avail_rev, merch_rev, ptc_rev, total_rev, contracted_share)
+    tax_credit_rows: list[tuple[str, str]]
+    # (label, value): ITC $, PTC $/MWh, PTC term
+
+
 # ---------------------------------------------------------------------------
 # Formatters
 # ---------------------------------------------------------------------------
@@ -125,6 +140,7 @@ def write_ic_memo(
     preparer: str = "Acquisitions",
     commercial: CommercialMemoBlock | None = None,
     datacenter: DCMemoBlock | None = None,
+    infrastructure: InfraMemoBlock | None = None,
 ) -> Path:
     """Render the IC memo as a docx at `out_path`."""
     doc = Document()
@@ -292,6 +308,49 @@ def write_ic_memo(
                     for (n, c, kw, tkw, ip, mk) in datacenter.cabinet_mix
                 ],
                 numeric_cols=[1, 2, 3, 4, 5],
+            )
+
+    # ---- 2a. Infrastructure: Generation & Revenue Mix ----
+    if infrastructure is not None:
+        add_heading(doc, "2a. Generation & Revenue Mix", level=1)
+        add_table(
+            doc,
+            headers=["Item", "Value"],
+            rows=[list(row) for row in infrastructure.summary_rows],
+            numeric_cols=[1],
+        )
+        add_para(doc, "Revenue stream roster:")
+        add_table(
+            doc,
+            headers=["Stream", "Type", "Counterparty", "Term",
+                     "Headline Rate", "Allotment", "Yr 1 Revenue"],
+            rows=[
+                [lbl, kind, cpty, term, rate, allot, _fmt_dollar(rev)]
+                for (lbl, kind, cpty, term, rate, allot, rev)
+                in infrastructure.stream_rows
+            ],
+            numeric_cols=[6],
+        )
+        add_para(doc, "Contracted vs. merchant revenue by hold year:")
+        add_table(
+            doc,
+            headers=["Year", "PPA", "Availability", "Merchant", "PTC",
+                     "Total", "Contracted %"],
+            rows=[
+                [f"Yr {yr}", _fmt_dollar(ppa), _fmt_dollar(av),
+                 _fmt_dollar(mc), _fmt_dollar(ptc), _fmt_dollar(tot),
+                 _fmt_pct(cs, 1)]
+                for (yr, ppa, av, mc, ptc, tot, cs) in infrastructure.mix_rows
+            ],
+            numeric_cols=[1, 2, 3, 4, 5, 6],
+        )
+        if infrastructure.tax_credit_rows:
+            add_para(doc, "Federal tax credits (monetized as cash):")
+            add_table(
+                doc,
+                headers=["Item", "Value"],
+                rows=[list(row) for row in infrastructure.tax_credit_rows],
+                numeric_cols=[1],
             )
 
     # ---- 3. Transaction Structure ----
@@ -702,10 +761,125 @@ def _build_dc_colo(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], 
     return payload, years, block
 
 
-def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, CommercialMemoBlock | None, DCMemoBlock | None]:
+def _build_infrastructure(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], InfraMemoBlock]:
+    from .infrastructure.models import (
+        AvailabilityStream,
+        MerchantStream,
+        PPAStream,
+        load_infrastructure_deal,
+    )
+    from .infrastructure.pro_forma import build_infrastructure_pro_forma
+    from .infrastructure.waterfall import run_infrastructure_waterfall
+    deal = load_infrastructure_deal(deal_path)
+    pf = build_infrastructure_pro_forma(deal)
+    wf = run_infrastructure_waterfall(pf)
+    gen = deal.property.generation
+    payload = build_payload(
+        pf=pf, wf=wf,
+        asset_class=f"Infrastructure ({gen.technology.title()})",
+        denom_label="Nameplate MW (AC)",
+        denom_value=gen.nameplate_mw_ac,
+        per_denom_label="/MW",
+        per_denom_fmt="dollar",
+        value_add_capex_total=sum(
+            ev.amount for ev in deal.capex.augmentation_schedule
+        ),
+    )
+    years = [
+        MemoYearLine(
+            year=yl.year, revenue=yl.gross_revenue,
+            opex=yl.total_opex, noi=yl.noi,
+            ncf_unlevered=yl.ncf_unlevered, ncf_levered=yl.ncf_levered,
+        )
+        for yl in pf.years
+    ]
+
+    # --- Summary rows ---
+    cs0 = pf.contracted_share_schedule[0]
+    realized_cf = pf.generation_schedule[0].cf_realized
+    summary_rows: list[tuple[str, str]] = [
+        ("Technology",            gen.technology.title()),
+        ("Market / ISO",          deal.property.market),
+        ("Nameplate MW (AC)",     f"{gen.nameplate_mw_ac:,.2f}"),
+        ("Target Capacity Factor",_fmt_pct(gen.capacity_factor, 1)),
+        ("Realized CF (Yr 1)",    _fmt_pct(realized_cf, 1)),
+        ("Net Generation (Yr 1)", f"{pf.years[0].net_generation_mwh:,.0f} MWh"),
+        ("Degradation (/yr)",     _fmt_pct(gen.degradation_pct, 2)),
+        ("Curtailment",           _fmt_pct(gen.curtailment_pct, 1)),
+        ("Availability",          _fmt_pct(gen.availability_pct, 1)),
+        ("# Revenue Streams",     str(len(deal.property.revenue_streams))),
+        ("Yr-1 Contracted Share", _fmt_pct(cs0.contracted_share, 1)),
+        ("All-In Basis / MW",     _fmt_dollar(pf.all_in_basis_per_mw)),
+    ]
+    if gen.bess_duration_hrs is not None:
+        summary_rows.append(("BESS Duration (hrs)", f"{gen.bess_duration_hrs:.1f}"))
+        summary_rows.append(("BESS Cycles / Yr", f"{gen.bess_cycles_per_year:.0f}"))
+        summary_rows.append(("Round-Trip Efficiency", _fmt_pct(gen.bess_round_trip_eff, 1)))
+
+    # --- Stream roster (Yr 1) ---
+    stream_rows: list[tuple[str, str, str, str, str, str, float]] = []
+    for stream in deal.property.revenue_streams:
+        cpty = f"{stream.counterparty} ({stream.counterparty_rating})"
+        # Find the matching per-stream series and its Yr-1 revenue.
+        match_key = next(
+            (k for k in pf.per_stream_years if k.startswith(stream.label)),
+            stream.label,
+        )
+        yr1 = pf.per_stream_years[match_key][0]
+        if isinstance(stream, PPAStream):
+            term = f"{stream.start_date.isoformat()} -> {stream.end_date.isoformat()}"
+            rate = f"${stream.price_mwh:.2f}/MWh (+{stream.escalation_pct*100:.1f}%/yr)"
+            allot = _fmt_pct(stream.allotment_pct, 0)
+            kind_label = "PPA"
+        elif isinstance(stream, AvailabilityStream):
+            term = f"{stream.start_date.isoformat()} -> {stream.end_date.isoformat()}"
+            rate = f"${stream.payment_mw_mo:,.0f}/MW-mo on {stream.capacity_mw:.1f} MW"
+            allot = "n/a"
+            kind_label = "Availability"
+        else:  # MerchantStream
+            term = f"{stream.market} spot ({len(stream.price_curve_mwh)}-yr curve)"
+            rate = f"${stream.price_curve_mwh[0]:.2f}/MWh Yr 1 (+{stream.terminal_growth*100:.1f}% term.)"
+            allot = _fmt_pct(stream.allotment_pct, 0)
+            kind_label = "Merchant"
+        stream_rows.append((
+            stream.label, kind_label, cpty, term, rate, allot, yr1.revenue,
+        ))
+
+    # --- Contracted vs. merchant mix by year ---
+    mix_rows: list[tuple[int, float, float, float, float, float, float]] = []
+    for yl, cs in zip(pf.years, pf.contracted_share_schedule):
+        total = yl.gross_revenue
+        mix_rows.append((
+            yl.year, yl.ppa_revenue, yl.availability_revenue,
+            yl.merchant_revenue, yl.ptc_revenue, total, cs.contracted_share,
+        ))
+
+    # --- Tax credit summary ---
+    tc = deal.tax_credits
+    tax_credit_rows: list[tuple[str, str]] = []
+    if tc.itc_pct > 0 or tc.itc_basis > 0:
+        tax_credit_rows.append(("ITC %",       _fmt_pct(tc.itc_pct, 1)))
+        tax_credit_rows.append(("ITC Basis",   _fmt_dollar(tc.itc_basis)))
+        tax_credit_rows.append(("ITC Cash (Yr 1)",
+                                _fmt_dollar(tc.itc_pct * tc.itc_basis)))
+    if tc.ptc_per_mwh > 0:
+        tax_credit_rows.append(("PTC ($/MWh)", f"${tc.ptc_per_mwh:.2f}"))
+        tax_credit_rows.append(("PTC Term (yrs)", str(tc.ptc_term_yrs)))
+        tax_credit_rows.append(("PTC Inflation", _fmt_pct(tc.ptc_inflation, 2)))
+
+    block = InfraMemoBlock(
+        summary_rows=summary_rows,
+        stream_rows=stream_rows,
+        mix_rows=mix_rows,
+        tax_credit_rows=tax_credit_rows,
+    )
+    return payload, years, block
+
+
+def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, CommercialMemoBlock | None, DCMemoBlock | None, InfraMemoBlock | None]:
     """Detect asset class from YAML, dispatch to correct engine.
 
-    Returns (payload, year_lines, revenue_label, commercial_block_or_None).
+    Returns (payload, year_lines, revenue_label, commercial, datacenter, infrastructure).
     """
     import yaml
     with open(deal_path, encoding="utf-8") as f:
@@ -713,7 +887,9 @@ def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, 
     prop = raw.get("property", {}) or {}
     asset_class = (prop.get("asset_class") or "").lower()
     if not asset_class:
-        if "keys" in prop or "service_level" in prop or "brand" in prop:
+        if "generation" in prop or "revenue_streams" in prop:
+            asset_class = "infrastructure"
+        elif "keys" in prop or "service_level" in prop or "brand" in prop:
             asset_class = "hospitality"
         elif "unit_mix" in prop:
             asset_class = "multifamily"
@@ -729,23 +905,26 @@ def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, 
 
     if asset_class == "multifamily":
         payload, years = _build_mf(deal_path)
-        return payload, years, "EGI", None, None
+        return payload, years, "EGI", None, None, None
     if asset_class in {"office", "industrial", "retail"}:
         payload, years, block = _build_commercial(deal_path)
-        return payload, years, "EGI", block, None
+        return payload, years, "EGI", block, None, None
     if asset_class == "hospitality":
         payload, years = _build_hospitality(deal_path)
-        return payload, years, "Total Revenue", None, None
+        return payload, years, "Total Revenue", None, None, None
     if asset_class == "datacenter_wholesale":
         payload, years, dc_block = _build_dc_wholesale(deal_path)
-        return payload, years, "EGI", None, dc_block
+        return payload, years, "EGI", None, dc_block, None
     if asset_class == "datacenter_colo":
         payload, years, dc_block = _build_dc_colo(deal_path)
-        return payload, years, "EGI", None, dc_block
+        return payload, years, "EGI", None, dc_block, None
+    if asset_class == "infrastructure":
+        payload, years, infra_block = _build_infrastructure(deal_path)
+        return payload, years, "Gross Revenue", None, None, infra_block
     raise ValueError(
         f"unknown asset_class '{asset_class}' in {deal_path}. "
         f"Expected: multifamily / office / industrial / retail / hospitality "
-        f"/ datacenter_wholesale / datacenter_colo."
+        f"/ datacenter_wholesale / datacenter_colo / infrastructure."
     )
 
 
@@ -784,12 +963,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    payload, years, revenue_label, commercial, datacenter = _dispatch(args.deal)
+    payload, years, revenue_label, commercial, datacenter, infrastructure = _dispatch(args.deal)
     out = Path(args.output) if args.output else Path("outputs") / f"{payload.deal_id}-ic-memo.docx"
     write_ic_memo(
         payload, years, out,
         revenue_label=revenue_label, preparer=args.preparer,
         commercial=commercial, datacenter=datacenter,
+        infrastructure=infrastructure,
     )
     _print_status(payload, out)
     return 0

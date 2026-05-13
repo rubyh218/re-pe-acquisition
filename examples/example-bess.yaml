@@ -1,0 +1,122 @@
+# Standalone 4-hr lithium-ion BESS, CAISO RA capacity contract + merchant arbitrage.
+# 100 MW AC / 400 MWh, sited in interior CAISO with utility-scale interconnect.
+# Revenue stack:
+#   - Resource adequacy capacity payment from IG utility (~10 yr contract)
+#   - DAM/RT merchant arbitrage spread (declining as fleet builds out)
+
+deal_id: CAISO-BESS-001
+deal_name: Central Valley BESS I
+sponsor: Acquirer
+
+property:
+  name: Kern Storage I
+  address: 23150 Lokern Rd, Kern County, CA
+  submarket: Kern County
+  market: CAISO
+  cod_date: 2025-04-01
+  year_built: 2025
+  asset_class: infrastructure
+  site_acres: 18
+  interconnect_voltage_kv: 230
+  generation:
+    technology: bess
+    nameplate_mw_ac: 100
+    # BESS capacity factor derived from throughput:
+    # cycles * duration * round_trip_eff / 8760 = 365 * 4 * 0.88 / 8760 ~= 0.1467
+    capacity_factor: 0.1467
+    degradation_pct: 0.025          # ~2-3%/yr capacity fade (LFP cells)
+    curtailment_pct: 0.0
+    availability_pct: 0.97
+    bess_duration_hrs: 4.0
+    bess_cycles_per_year: 365
+    bess_round_trip_eff: 0.88
+  revenue_streams:
+    - kind: availability
+      label: CAISO RA - Pacific Gas & Electric
+      counterparty: PG&E
+      counterparty_rating: IG
+      capacity_mw: 100
+      payment_mw_mo: 9500           # $9.50/kW-mo capacity
+      escalation_pct: 0.02
+      start_date: 2026-01-01
+      end_date: 2035-12-31
+    - kind: merchant
+      label: CAISO Merchant Arbitrage (DAM/RT spread)
+      counterparty: CAISO Spot
+      counterparty_rating: Unrated
+      market: CAISO
+      allotment_pct: 1.0
+      # $/MWh net discharge spread (arrives saturated as BESS fleet grows)
+      price_curve_mwh: [110, 100, 90, 82, 76, 72, 70]
+      terminal_growth: 0.015
+
+acquisition:
+  purchase_price: 150000000         # $1.5M / MW (operating asset, post-COD)
+  closing_costs_pct: 0.01
+  initial_capex: 0
+  day_one_reserves: 4000000
+  close_date: 2026-06-01
+
+tax_credits:
+  # Standalone storage qualifies for ITC under IRA (30% base + 10% energy community)
+  itc_pct: 0.40
+  itc_basis: 145000000              # eligible basis (construction cost less land)
+  ptc_per_mwh: 0.0
+  ptc_term_yrs: 0
+  ptc_inflation: 0.0
+
+opex:
+  fixed_om_per_mw_yr: 22000         # higher than solar -- battery O&M contract w/ aug guarantees
+  variable_om_per_mwh: 1.5
+  insurance_per_mw_yr: 5000
+  property_tax: 1100000
+  land_lease: 250000
+  interconnection_om: 180000
+  asset_mgmt_pct: 0.015
+  om_growth: 0.025
+  property_tax_growth: 0.02
+  land_lease_growth: 0.025
+  insurance_growth: 0.03
+
+capex:
+  initial_capex: 0
+  augmentation_schedule:
+    - year: 5
+      amount: 12000000
+      label: Battery augmentation (maintain 4-hr duration)
+    - year: 8
+      amount: 14000000
+      label: Second augmentation cycle
+  recurring_reserve_per_mw_yr: 3500
+
+debt:
+  rate: 0.0675
+  term_yrs: 10
+  amort_yrs: 20
+  io_period_yrs: 1
+  max_ltv: 0.55
+  min_dscr: 1.40
+  min_debt_yield: 0.090
+  origination_fee_pct: 0.0125
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.01
+  tiers:
+    - hurdle_irr: 0.08
+      promote_pct: 0.0
+      label: Preferred Return
+    - hurdle_irr: 0.13
+      promote_pct: 0.20
+      label: First Promote
+    - hurdle_irr: 0.20
+      promote_pct: 0.35
+      label: Residual
+
+exit:
+  hold_yrs: 7
+  exit_cap: 0.085
+  cost_of_sale_pct: 0.02
+  exit_noi_basis: forward

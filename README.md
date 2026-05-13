@@ -1,6 +1,6 @@
 # Real Estate PE Acquisition
 
-Institutional-grade underwriting and deal-workflow toolkit for real estate private equity acquisitions. Covers sourcing through closing across **multifamily, office, industrial, retail, hospitality, and datacenter** asset classes, with a paired asset-management library vendored as a git submodule.
+Institutional-grade underwriting and deal-workflow toolkit for real estate private equity acquisitions. Covers sourcing through closing across **multifamily, office, industrial, retail, hospitality, datacenter, and energy infrastructure** asset classes, with a paired asset-management library vendored as a git submodule.
 
 Outputs follow Wall Street modeling conventions: multi-tier IRR-hurdle waterfalls, three-basis ROC (untrended / trended / exit-FTM), institutional Excel formatting, and a docx Investment Committee memo generator.
 
@@ -13,10 +13,13 @@ Outputs follow Wall Street modeling conventions: multi-tier IRR-hurdle waterfall
 | Hospitality | `scripts/underwriting/hospitality/` (USALI) | `examples/example-hotel.yaml` |
 | Datacenter — wholesale | `scripts/underwriting/datacenter/wholesale_pro_forma.py` | `examples/example-dc-wholesale.yaml` |
 | Datacenter — colocation | `scripts/underwriting/datacenter/colo_pro_forma.py` | `examples/example-dc-colo.yaml` |
+| Infrastructure (solar / wind / BESS) | `scripts/underwriting/infrastructure/pro_forma.py` | `examples/example-solar-ppa.yaml`, `example-wind.yaml`, `example-bess.yaml` |
 
 Every engine emits an institutional Excel workbook (executive summary + per-engine detail tabs) and feeds the cross-engine **IC memo** generator (`scripts/underwriting/ic_memo.py`).
 
 The datacenter package additionally ships a **negotiation playbook** (`datacenter/negotiation.py`) with structured acquisition and lease-tactic catalogs that surface in the IC memo.
+
+The infrastructure engine handles any blend of three revenue streams — contracted PPA ($/MWh), capacity / availability payments ($/MW-mo), and merchant exposure (year-indexed price curve) — against a generation profile (nameplate MW, capacity factor, degradation, curtailment, availability). It models ITC as Yr-1 cash and PTC as a per-MWh credit over the term, sizes OpEx on nameplate (fixed) + net generation (variable), and handles lumpy augmentation capex (BESS swaps, inverter replacement, blade refurb). The IC memo's section 2a reports the contracted-vs-merchant revenue mix by hold year — the institutional headline for any energy asset.
 
 ## Install
 
@@ -56,6 +59,11 @@ python -m scripts.underwriting.hospitality examples/example-hotel.yaml
 # Datacenter (dispatches wholesale vs. colo from YAML shape)
 python -m scripts.underwriting.datacenter examples/example-dc-wholesale.yaml
 python -m scripts.underwriting.datacenter examples/example-dc-colo.yaml
+
+# Energy infrastructure (solar / wind / BESS)
+python -m scripts.underwriting.infrastructure examples/example-solar-ppa.yaml
+python -m scripts.underwriting.infrastructure examples/example-wind.yaml
+python -m scripts.underwriting.infrastructure examples/example-bess.yaml
 ```
 
 ### IC memo → Word
@@ -66,7 +74,7 @@ The IC memo generator auto-dispatches by `property.asset_class` (with fallback i
 python -m scripts.underwriting.ic_memo examples/example-dc-colo.yaml -o outputs/colo-ic-memo.docx
 ```
 
-Sections: cover page, transaction summary, sources & uses, capital structure, pro forma, returns, sensitivities, risk register. Datacenter memos add a tenancy/cabinet-mix section (2a) and a negotiation playbook (section 9).
+Sections: cover page, transaction summary, sources & uses, capital structure, pro forma, returns, sensitivities, risk register. Datacenter memos add a tenancy/cabinet-mix section (2a) and a negotiation playbook (section 9). Infrastructure memos add a generation profile + revenue-stream roster + contracted-share-by-year section (2a) and a tax-credit summary.
 
 ### OM extraction (PDF → YAML)
 
@@ -92,6 +100,7 @@ scripts/underwriting/
   commercial/         Office / industrial / retail (lease-by-lease)
   hospitality/        USALI hotel engine
   datacenter/         Wholesale + colo engines + negotiation playbook
+  infrastructure/     Energy generation engine (PPA / availability / merchant + ITC/PTC)
   debt_sizing.py      Solves min of LTV / DSCR / DY constraints
   waterfall_acq.py    Single-tier acquisition waterfall
   waterfall_multi.py  Multi-tier IRR-hurdle waterfall

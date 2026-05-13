@@ -1,0 +1,117 @@
+# Utility-scale onshore wind, MISO Iowa siting.
+# 250 MW project with 40% net capacity factor (good Class 4 wind resource).
+# Revenue stack:
+#   - 12-yr PPA with co-op offtaker at $45/MWh, 1.75% escalation (covers ~90% of gen)
+#   - Modest MISO merchant tail (10% allotment)
+#   - PTC of $27.50/MWh, IRA-inflated, 10-yr term
+
+deal_id: MISO-WIND-001
+deal_name: North Iowa Wind I
+sponsor: Acquirer
+
+property:
+  name: Cerro Gordo Wind
+  address: 2200 N Eisenhower Ave, Cerro Gordo County, IA
+  submarket: North Iowa
+  market: MISO
+  cod_date: 2023-11-01
+  year_built: 2023
+  asset_class: infrastructure
+  site_acres: 28000
+  interconnect_voltage_kv: 345
+  generation:
+    technology: wind
+    nameplate_mw_ac: 250
+    capacity_factor: 0.40
+    degradation_pct: 0.003           # blade soiling + minor gearbox wear
+    curtailment_pct: 0.04            # MISO curtailment band
+    availability_pct: 0.96           # mechanical availability
+  revenue_streams:
+    - kind: ppa
+      label: PPA - Generation & Transmission Cooperative
+      counterparty: Midwest G&T Co-op
+      counterparty_rating: IG
+      price_mwh: 45.0
+      escalation_pct: 0.0175
+      allotment_pct: 0.90
+      start_date: 2023-11-01
+      end_date: 2035-10-31
+    - kind: merchant
+      label: MISO Merchant Tail
+      counterparty: MISO Spot
+      counterparty_rating: Unrated
+      market: MISO
+      allotment_pct: 0.10
+      price_curve_mwh: [28, 29, 30, 31, 32, 33, 34]
+      terminal_growth: 0.02
+
+acquisition:
+  purchase_price: 425000000          # $1.7M / MW (operating, post-COD, in PTC zone)
+  closing_costs_pct: 0.01
+  initial_capex: 0
+  day_one_reserves: 7500000
+  close_date: 2026-06-01
+
+tax_credits:
+  # Wind elected PTC (not ITC); operating asset captures remainder of 10-yr PTC window
+  itc_pct: 0.0
+  itc_basis: 0.0
+  ptc_per_mwh: 27.50
+  ptc_term_yrs: 7                    # ~7 yrs remaining from COD-2023 + IRA 10-yr window
+  ptc_inflation: 0.025
+
+opex:
+  fixed_om_per_mw_yr: 18000          # full-service O&M w/ OEM
+  variable_om_per_mwh: 1.25          # wear-and-tear higher than solar
+  insurance_per_mw_yr: 4500
+  property_tax: 2800000
+  land_lease: 2200000                # landowner royalties (~$5K/MW + % of revenue mix)
+  interconnection_om: 300000
+  asset_mgmt_pct: 0.015
+  om_growth: 0.025
+  property_tax_growth: 0.02
+  land_lease_growth: 0.025
+  insurance_growth: 0.03
+
+capex:
+  initial_capex: 0
+  augmentation_schedule:
+    - year: 4
+      amount: 9000000
+      label: Gearbox + bearing replacements (mid-life)
+    - year: 8
+      amount: 12000000
+      label: Blade refurb / leading-edge protection
+  recurring_reserve_per_mw_yr: 2500
+
+debt:
+  rate: 0.0625
+  term_yrs: 10
+  amort_yrs: 22
+  io_period_yrs: 1
+  max_ltv: 0.55
+  min_dscr: 1.40
+  min_debt_yield: 0.085
+  origination_fee_pct: 0.01
+
+equity:
+  pref_rate: 0.08
+  promote_pct: 0.20
+  gp_coinvest_pct: 0.10
+  acq_fee_pct: 0.01
+  tiers:
+    - hurdle_irr: 0.08
+      promote_pct: 0.0
+      label: Preferred Return
+    - hurdle_irr: 0.12
+      promote_pct: 0.20
+      label: First Promote
+    - hurdle_irr: 0.18
+      promote_pct: 0.35
+      label: Residual
+
+exit:
+  hold_yrs: 7
+  exit_cap: 0.075
+  cost_of_sale_pct: 0.02
+  exit_noi_basis: forward
