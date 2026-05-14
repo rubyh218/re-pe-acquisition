@@ -133,16 +133,26 @@ def build_pro_forma(deal: Deal) -> ProForma:
     # --- Revenue/OpEx/NOI/CapEx pre-debt build ---
     pre_debt: list[YearLine] = []
     cumulative_renovated = 0.0
+    mtm_roll_yrs = deal.revenue.mtm_roll_yrs
     for y_idx in range(n_years):
         y = y_idx + 1
-        # Effective rent: Yr 1 = in-place; Yr 2+ = market trended forward
+        # Effective rent: blend of in-place and market, both trended.
+        # Year 1 is always in-place (close-of-quarter snapshot).
+        # Years 2+ roll a `rolled_pct` of leases to market over `mtm_roll_yrs`.
         if y == 1:
             avg_rent_base = avg_in_place
         else:
+            yrs_into_roll = y - 1   # 1 at start of Year 2
+            rolled_pct = min(1.0, yrs_into_roll / mtm_roll_yrs)
             growth_factor = 1.0
             for g in rg[: y - 1]:
                 growth_factor *= (1 + g)
-            avg_rent_base = avg_market * growth_factor
+            # Rolled portion at market * growth; unrolled at in-place * growth.
+            # In-place trends too (within-lease bumps).
+            avg_rent_base = (
+                rolled_pct * avg_market * growth_factor
+                + (1 - rolled_pct) * avg_in_place * growth_factor
+            )
 
         # Renovation premium adds to whatever rent applies to the renovated share.
         if deal.capex.units_renovated_pct and y_idx < len(deal.capex.units_renovated_pct):
