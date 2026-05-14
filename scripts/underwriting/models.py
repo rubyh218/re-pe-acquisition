@@ -89,6 +89,21 @@ class Revenue(_Frozen):
     bad_debt: float = Field(default=0.01, ge=0, le=0.05)      # % of GPR
     concessions_yr1: float = Field(default=0.0, ge=0, le=0.10)  # Year 1 concessions (% of GPR), burns off by Yr 3
 
+    # In-place → market mark-to-market roll convention.
+    #
+    # Multifamily leases are typically 12 months, so only ~50% of the rent
+    # roll re-prices in any given year. mtm_roll_yrs=1 (the previous default
+    # and the institutional value-add convention) assumes the engine
+    # instantly captures the full LTL gap at the start of Year 2. That
+    # overstates Year-2 revenue on any deal with material LTL.
+    #
+    # Set mtm_roll_yrs > 1 to spread the roll linearly over multiple years:
+    #   mtm_roll_yrs=2 → 50% rolls at Year 2, 100% at Year 3.
+    #   mtm_roll_yrs=3 → 33% / 67% / 100% at Years 2, 3, 4.
+    #
+    # In every case, the rolled portion trends with rent_growth from Yr 1.
+    mtm_roll_yrs: int = Field(default=1, ge=1, le=10)
+
 
 # ---------------------------------------------------------------------------
 # OpEx assumptions
