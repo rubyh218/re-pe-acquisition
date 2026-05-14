@@ -334,13 +334,16 @@ def _power_margin_year(
         ov = _overlap_months(win_start, win_end, seg.start, seg.end)
         occupied_mw_months += ov * seg.mw
     avg_mw = occupied_mw_months / 12
-    # Annual kWh at full draw (assume contracted MW = IT load; total power =
-    # IT * PUE). Margin = (mult - 1) * utility_rate * total_kwh.
-    pue = 1.0  # PUE is property-level; we use a simpler proxy here -- landlord
-    # margin sized on contracted IT MW only; cooling overhead is landlord cost.
+
+    # Margin is on IT-only kWh (NOT total facility kWh including cooling).
+    # Convention: under partial pass-through, the tenant is metered on their
+    # IT consumption and pays utility_rate * (1 + margin) on that. Cooling
+    # overhead (PUE > 1.0) is the landlord's cost and is captured in
+    # DCWholesaleOpEx.common_power_per_mw, not here. So we deliberately
+    # size on IT MW only (i.e., effective PUE factor of 1.0 in this calc).
     util_rate = market.utility_rate_kwh * (1 + market.utility_rate_growth) ** (year - 1)
-    annual_kwh = avg_mw * 1000 * 8760 * pue
-    return (market.power_margin_multiplier - 1.0) * util_rate * annual_kwh
+    annual_it_kwh = avg_mw * 1000 * 8760
+    return (market.power_margin_multiplier - 1.0) * util_rate * annual_it_kwh
 
 
 # ---------------------------------------------------------------------------
@@ -444,8 +447,9 @@ def build_wholesale_pro_forma(deal: DCWholesaleDeal) -> WholesaleProForma:
         leased_mw_avg = leased_mw_months / 12
         utilization = leased_mw_avg / prop.mw_commissioned if prop.mw_commissioned else 0.0
 
-        # General vacancy: % of gross rent (credit loss / unmodeled downtime)
-        general_vacancy = -0.01 * gross_rent  # 1% credit loss baseline for hyperscale-grade tenants
+        # General vacancy / credit loss reserve (configurable on
+        # DCWholesaleMarket; default 1% for hyperscale-grade tenants).
+        general_vacancy = -deal.market.general_vacancy_pct * gross_rent
         egi = gross_rent + free_rent + power_margin + general_vacancy
 
         # --- OpEx (sized on mw_critical) ---
