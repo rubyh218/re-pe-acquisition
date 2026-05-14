@@ -113,6 +113,11 @@ class DCWholesaleMarket(_Frozen):
 
     renewal_prob: float = Field(default=0.80, ge=0, le=1.0)  # wholesale tenants stickier than office
 
+    # General vacancy / credit-loss reserve as % of gross rent. Hyperscale-grade
+    # tenants are highly creditworthy (Microsoft/Meta/AWS), so the default is
+    # tight at 1.0%. Override on bridge-tenant or B-market deals.
+    general_vacancy_pct: float = Field(default=0.01, ge=0, le=0.10)
+
     # Power margin on partial pass-through contracts (multiplier applied to
     # utility cost when billing tenant; e.g., 1.05 = 5% landlord margin).
     power_margin_multiplier: float = Field(default=1.05, ge=1.0, le=1.30)
