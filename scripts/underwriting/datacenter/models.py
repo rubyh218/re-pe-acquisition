@@ -452,24 +452,28 @@ def load_dc_colo_deal(path: str) -> DCColoDeal:
 def detect_dc_kind(path: str) -> Literal["wholesale", "colo"]:
     """Inspect a YAML file and decide which DC engine to use.
 
-    Convention: presence of `property.contracts` -> wholesale; presence of
-    `property.cabinet_mix` -> colo. Also honors explicit asset_class.
+    `property.asset_class` MUST be set to either `datacenter_wholesale` or
+    `datacenter_colo`. Heuristic inference (from presence of `contracts` or
+    `cabinet_mix`) is disabled — a misclassified deal would feed the wrong
+    pricing convention ($/kW/mo vs $/cab MRR).
     """
     import yaml
     from pathlib import Path
     with Path(path).open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     prop = (raw or {}).get("property", {}) or {}
-    ac = (prop.get("asset_class") or "").lower()
+    ac = (prop.get("asset_class") or "").strip().lower()
     if ac == "datacenter_wholesale":
         return "wholesale"
     if ac == "datacenter_colo":
         return "colo"
-    if prop.get("contracts"):
-        return "wholesale"
-    if prop.get("cabinet_mix"):
-        return "colo"
+    if not ac:
+        raise ValueError(
+            f"{path}: property.asset_class is required and must be "
+            f"'datacenter_wholesale' or 'datacenter_colo'. "
+            f"Heuristic inference is disabled."
+        )
     raise ValueError(
-        f"could not detect DC kind in {path}: missing property.contracts "
-        f"(wholesale) or property.cabinet_mix (colo)"
+        f"{path}: property.asset_class={ac!r} not supported by the DC engine. "
+        f"Expected 'datacenter_wholesale' or 'datacenter_colo'."
     )
