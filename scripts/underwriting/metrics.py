@@ -50,8 +50,14 @@ def compute_roc(
     """
     if all_in_basis <= 0:
         raise ValueError(f"all_in_basis must be > 0, got {all_in_basis}")
-    deflate = (1 + growth_rate) ** max(0, stab_yr - 1) if growth_rate > -1 else 1.0
-    untrended_stab_noi = stab_noi / deflate if deflate > 0 else stab_noi
+    # Guard against growth_rate <= -1 (would divide by zero or yield negative
+    # deflator). At -100% growth the untrended-to-trended map is undefined;
+    # fall back to no deflation.
+    if growth_rate > -1:
+        deflate = (1 + growth_rate) ** max(0, stab_yr - 1)
+    else:
+        deflate = 1.0
+    untrended_stab_noi = stab_noi / deflate
     return ReturnOnCost(
         untrended_stab=untrended_stab_noi / all_in_basis,
         trended_stab=stab_noi / all_in_basis,

@@ -17,6 +17,8 @@ from .pro_forma import build_pro_forma
 from .sensitivity import default_tables
 from .waterfall_acq import run_acquisition_waterfall
 
+# UTF-8 stdout reconfigure happens at scripts/__init__.py import time.
+
 
 def _print_summary(pf, wf):
     deal = pf.deal
