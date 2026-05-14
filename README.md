@@ -116,6 +116,18 @@ workflows/            Stage-gated workflow notes (01-sourcing -> 08-handoff)
 SKILL.md              Claude Code skill manifest (paired tooling)
 ```
 
+## Tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+56 tests covering ROC math, debt sizing + amortization invariants, the
+multi-tier waterfall (hand-derived expected values), pydantic schema
+validation, and one end-to-end fixture per asset-class engine. Tests pin
+the headline numbers each example YAML produces; intentional engine
+changes need the relevant assertion updated in the PR.
+
 ## Conventions
 
 - **Returns**: levered IRR, MOIC, TVPI, three-basis ROC.
