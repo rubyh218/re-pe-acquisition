@@ -11,6 +11,7 @@ property:
   address: 1200 Airport Pkwy, Charlotte, NC 28208
   submarket: Charlotte Airport
   year_built: 2008
+  asset_class: hospitality
   brand: Hampton Inn
   flag_type: franchised
   service_level: upper_midscale

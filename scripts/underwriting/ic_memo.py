@@ -876,32 +876,47 @@ def _build_infrastructure(deal_path: str) -> tuple[SummaryPayload, list[MemoYear
     return payload, years, block
 
 
+_VALID_ASSET_CLASSES = {
+    "multifamily",
+    "office", "industrial", "retail",
+    "hospitality",
+    "datacenter_wholesale", "datacenter_colo",
+    "infrastructure",
+}
+
+
 def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, CommercialMemoBlock | None, DCMemoBlock | None, InfraMemoBlock | None]:
-    """Detect asset class from YAML, dispatch to correct engine.
+    """Dispatch to the right engine based on the YAML's explicit asset_class.
+
+    `property.asset_class` MUST be set — heuristic inference from field
+    presence (which the prior implementation did) silently misclassified
+    deals when fields were missing or unexpected. An IC memo built off
+    the wrong engine is a presentation disaster.
+
+    Schema mismatches surface as pydantic ValidationError from the
+    engine-specific Deal model, with field-level detail.
 
     Returns (payload, year_lines, revenue_label, commercial, datacenter, infrastructure).
     """
     import yaml
     with open(deal_path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
-    prop = raw.get("property", {}) or {}
-    asset_class = (prop.get("asset_class") or "").lower()
-    if not asset_class:
-        if "generation" in prop or "revenue_streams" in prop:
-            asset_class = "infrastructure"
-        elif "keys" in prop or "service_level" in prop or "brand" in prop:
-            asset_class = "hospitality"
-        elif "unit_mix" in prop:
-            asset_class = "multifamily"
-        elif "rent_roll" in raw or "leases" in raw:
-            asset_class = "office"
+    prop = (raw.get("property") or {}) if isinstance(raw, dict) else {}
+    asset_class = (prop.get("asset_class") or "").strip().lower()
 
-    # Datacenter auto-detect fallback if no explicit asset_class
     if not asset_class:
-        if "contracts" in prop:
-            asset_class = "datacenter_wholesale"
-        elif "cabinet_mix" in prop:
-            asset_class = "datacenter_colo"
+        raise ValueError(
+            f"{deal_path}: property.asset_class is required.\n"
+            f"  Set it explicitly to one of:\n"
+            f"    {sorted(_VALID_ASSET_CLASSES)}\n"
+            f"  Heuristic inference is disabled — a misclassified deal would "
+            f"produce an IC memo with the wrong engine's sections."
+        )
+    if asset_class not in _VALID_ASSET_CLASSES:
+        raise ValueError(
+            f"{deal_path}: unknown property.asset_class={asset_class!r}.\n"
+            f"  Expected one of: {sorted(_VALID_ASSET_CLASSES)}."
+        )
 
     if asset_class == "multifamily":
         payload, years = _build_mf(deal_path)
@@ -921,11 +936,8 @@ def _dispatch(deal_path: str) -> tuple[SummaryPayload, list[MemoYearLine], str, 
     if asset_class == "infrastructure":
         payload, years, infra_block = _build_infrastructure(deal_path)
         return payload, years, "Gross Revenue", None, None, infra_block
-    raise ValueError(
-        f"unknown asset_class '{asset_class}' in {deal_path}. "
-        f"Expected: multifamily / office / industrial / retail / hospitality "
-        f"/ datacenter_wholesale / datacenter_colo / infrastructure."
-    )
+    # Unreachable given the guard above, but kept for safety.
+    raise ValueError(f"no dispatch for asset_class={asset_class!r}")
 
 
 # ---------------------------------------------------------------------------
