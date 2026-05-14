@@ -190,9 +190,9 @@ def write_executive_summary(wb: Workbook, p: SummaryPayload) -> None:
     # --- Cap Rates & 3-Basis ROC ---
     write_section(ws, r, "Cap Rates & Return on Cost", span_cols=10); r += 1
     cap_rows = [
-        ("Going-In Cap (Yr 1 NOI / Price)",       p.going_in_cap),
-        (f"Stabilized Cap (Yr {p.stab_yr} NOI)",  p.stabilized_cap),
-        ("Exit Cap",                              p.exit_cap),
+        ("Going-In Cap (Yr 1 NOI / Price)",                   p.going_in_cap),
+        (f"Stabilized Cap (Yr {p.stab_yr} NOI / Price)",      p.stabilized_cap),
+        ("Exit Cap",                                          p.exit_cap),
     ]
     for label, val in cap_rows:
         write_label(ws, (r, 2), label)
