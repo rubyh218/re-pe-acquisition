@@ -36,7 +36,8 @@ def _print_summary(deal, pf, wf) -> None:
     print(f"  {'Yr-1 Contracted Share':<32} {cs0.contracted_share*100:>15.1f}%")
     print(bar)
     print(f"  {'Going-In Cap':<32} {pf.going_in_cap*100:>15.2f}%")
-    print(f"  {'Stabilized Cap':<32} {pf.stabilized_cap*100:>15.2f}%")
+    print(f"  {'Yr ' + str(pf.roc.stab_yr) + ' Cap (on price)':<32} {pf.stabilized_cap*100:>15.2f}%")
+    print(f"  {'Yr ' + str(pf.roc.stab_yr) + ' YoC (all-in)':<32} {pf.roc.trended_stab*100:>15.2f}%")
     print(f"  {'Exit Cap':<32} {deal.exit.exit_cap*100:>15.2f}%")
     print(bar)
     s = pf.sizing

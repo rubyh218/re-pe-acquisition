@@ -165,9 +165,9 @@ def write_ic_memo(
         f"({_fmt_per_denom(p.purchase_price / p.denom_value, p.per_denom_label)}). "
         f"Total all-in basis of {_fmt_dollar(p.all_in_basis)} "
         f"({_fmt_per_denom(p.all_in_basis / p.denom_value, p.per_denom_label)}) "
-        f"underwrites to {_fmt_pct(p.going_in_cap)} going-in / "
-        f"{_fmt_pct(p.stabilized_cap)} stabilized cap on a "
-        f"{p.hold_yrs}-year hold."
+        f"underwrites to {_fmt_pct(p.going_in_cap)} going-in cap, "
+        f"{_fmt_pct(p.roc_trended)} stabilized YoC on all-in basis "
+        f"(Yr {p.stab_yr}), on a {p.hold_yrs}-year hold."
     )
     add_para(
         doc,
@@ -185,9 +185,10 @@ def write_ic_memo(
             ["Purchase Price",       _fmt_dollar(p.purchase_price)],
             [f"Price {p.per_denom_label}", _fmt_dollar(p.purchase_price / p.denom_value)],
             ["All-In Basis",         _fmt_dollar(p.all_in_basis)],
-            ["Going-In Cap",         _fmt_pct(p.going_in_cap)],
-            [f"Stab Cap (Yr {p.stab_yr})", _fmt_pct(p.stabilized_cap)],
-            ["Exit Cap",             _fmt_pct(p.exit_cap)],
+            ["Going-In Cap",                          _fmt_pct(p.going_in_cap)],
+            [f"Stab Cap on Price (Yr {p.stab_yr})",   _fmt_pct(p.stabilized_cap)],
+            [f"YoC on All-In (Yr {p.stab_yr})",       _fmt_pct(p.roc_trended)],
+            ["Exit Cap",                              _fmt_pct(p.exit_cap)],
             ["Untrended YOC @ Stab", _fmt_pct(p.roc_untrended)],
             ["Trended YOC @ Stab",   _fmt_pct(p.roc_trended)],
             ["YOC @ Exit (FTM)",     _fmt_pct(p.roc_exit_ftm)],

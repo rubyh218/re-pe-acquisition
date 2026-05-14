@@ -322,9 +322,9 @@ def _ws_returns(wb: Workbook, pf: InfraProForma, wf: WaterfallResult) -> None:
     r += 1; write_section(ws, r, "Returns"); r += 2
     for label, val, fmt in [
         ("Going-In Cap", pf.going_in_cap, "pct2"),
-        ("Stabilized Cap", pf.stabilized_cap, "pct2"),
-        ("Untrended ROC @ Stab", pf.roc.untrended_stab, "pct2"),
-        ("Trended ROC @ Stab", pf.roc.trended_stab, "pct2"),
+        (f"Yr {pf.roc.stab_yr} Cap (on price)", pf.stabilized_cap, "pct2"),
+        (f"Yr {pf.roc.stab_yr} YoC (all-in)", pf.roc.trended_stab, "pct2"),
+        ("Untrended YoC @ Stab", pf.roc.untrended_stab, "pct2"),
         ("Exit FTM ROC", pf.roc.exit_ftm, "pct2"),
         ("All-In / MW", pf.all_in_basis_per_mw, "dollar"),
         ("Project IRR", wf.total_equity_irr, "pct2"),

@@ -439,7 +439,8 @@ def _ws_returns(wb: Workbook, pf, wf: WaterfallResult) -> None:
     r += 1; write_section(ws, r, "Returns"); r += 2
     for label, val, fmt in [
         ("Going-In Cap", pf.going_in_cap, "pct2"),
-        ("Stabilized Cap", pf.stabilized_cap, "pct2"),
+        (f"Yr {pf.roc.stab_yr} Cap (on price)", pf.stabilized_cap, "pct2"),
+        (f"Yr {pf.roc.stab_yr} YoC (all-in basis)", pf.roc.trended_stab, "pct2"),
         ("Project IRR", wf.total_equity_irr, "pct2"),
         ("Project MOIC", wf.total_equity_moic, "multiple"),
         ("LP IRR", wf.lp.irr, "pct2"),

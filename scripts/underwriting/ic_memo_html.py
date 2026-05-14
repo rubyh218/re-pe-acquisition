@@ -82,7 +82,8 @@ def _slide_exec_summary(p: SummaryPayload, slide_num: int) -> str:
         ("All-In Basis", _fmt_dollar(p.all_in_basis)),
         (f"Basis {p.per_denom_label}", _fmt_per_denom(p.all_in_basis / p.denom_value, p.per_denom_label)),
         ("Going-In Cap", _fmt_pct(p.going_in_cap)),
-        (f"Yr {p.stab_yr} Stabilized Cap", _fmt_pct(p.stabilized_cap)),
+        (f"Yr {p.stab_yr} Stab Cap (on price)", _fmt_pct(p.stabilized_cap)),
+        (f"Yr {p.stab_yr} YoC (all-in basis)", _fmt_pct(p.roc_trended)),
         ("Exit Cap", _fmt_pct(p.exit_cap)),
     ]
     returns = [
@@ -378,7 +379,7 @@ def _slide_recommendation(p: SummaryPayload, slide_num: int) -> str:
     <div><span class="vg-label">LP Net IRR</span><span class="vg-val">{_fmt_pct(p.lp_irr)}</span></div>
     <div><span class="vg-label">LP MOIC</span><span class="vg-val">{_fmt_multiple(p.lp_moic)}</span></div>
     <div><span class="vg-label">Going-In Cap</span><span class="vg-val">{_fmt_pct(p.going_in_cap)}</span></div>
-    <div><span class="vg-label">Yr {p.stab_yr} Stab Cap</span><span class="vg-val">{_fmt_pct(p.stabilized_cap)}</span></div>
+    <div><span class="vg-label">Yr {p.stab_yr} YoC (all-in)</span><span class="vg-val">{_fmt_pct(p.roc_trended)}</span></div>
   </div>
 </section>
 """
