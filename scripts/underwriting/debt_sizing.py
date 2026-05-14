@@ -89,50 +89,71 @@ def amortization_schedule(
     years: int,
 ) -> list[AmortYear]:
     """
-    Build annual amort schedule.
+    Build annual amort schedule by summing 12 monthly steps per year.
 
-    Honors io_period_yrs (interest-only first N years) then switches to amortizing
-    on the remaining balance over the remaining amort_yrs. If amort_yrs == 0,
-    fully interest-only for the whole term.
+    Real-world RE loans amortize monthly: each month interest accrues on the
+    THEN-CURRENT balance, principal pays down, and next month's interest is
+    on the now-smaller balance. Approximating with annual `balance * rate`
+    overstates year-1 interest and under-states principal, drifting on long
+    holds (~30bps on a 10-yr balloon for a 30-yr-amort loan).
+
+    Convention:
+      - amort_yrs is the amortization period, calibrating the monthly payment
+        as `loan_amount` amortizing over `amort_yrs * 12` months. The same
+        monthly payment applies after the IO period; in a balloon-at-term
+        scenario (term < amort) the balance at maturity is the balloon.
+      - io_period_yrs years pay interest only on the then-current balance
+        (which equals loan_amount throughout the IO since no principal pays).
+      - amort_yrs == 0 → interest-only for the whole term.
     """
     schedule: list[AmortYear] = []
     balance = loan_amount
-    rate = debt.rate
+    annual_rate = debt.rate
+    monthly_rate = annual_rate / 12
 
-    # Annual payment for the amortizing portion (post-IO)
+    # Monthly amortizing payment, sized once on the original loan over the
+    # full amortization period (institutional convention).
     if debt.amort_yrs > 0:
-        amort_annual = _annual_debt_service(loan_amount, rate, debt.amort_yrs)
+        n = debt.amort_yrs * 12
+        if monthly_rate > 0:
+            monthly_pmt = loan_amount * (
+                monthly_rate * (1 + monthly_rate) ** n
+            ) / ((1 + monthly_rate) ** n - 1)
+        else:
+            monthly_pmt = loan_amount / n
     else:
-        amort_annual = loan_amount * rate  # IO
+        monthly_pmt = 0.0  # IO-only; payment recomputed below from balance
 
     for yr in range(1, years + 1):
         is_io = yr <= debt.io_period_yrs or debt.amort_yrs == 0
         beginning = balance
-        if is_io:
-            interest = balance * rate
-            principal = 0.0
-            ds = interest
-        else:
-            # On the level-pay amortizing schedule, annual payment is constant; principal = ds - interest
-            ds = amort_annual
-            interest = balance * rate
-            principal = max(0.0, ds - interest)
-            # Cap principal at remaining balance
-            if principal > balance:
-                principal = balance
-                ds = interest + principal
-        ending = beginning - principal
+        year_interest = 0.0
+        year_principal = 0.0
+        for _ in range(12):
+            month_interest = balance * monthly_rate
+            year_interest += month_interest
+            if is_io:
+                month_principal = 0.0
+            else:
+                month_principal = min(monthly_pmt - month_interest, balance)
+                if month_principal < 0:
+                    # Negative-amortization guard: in a steep enough rate move,
+                    # interest could exceed the payment. We don't model neg-am;
+                    # treat as IO for that month and let the schedule continue.
+                    month_principal = 0.0
+            balance -= month_principal
+            year_principal += month_principal
+        ds = year_interest + year_principal
         schedule.append(
             AmortYear(
                 year=yr,
                 beginning_balance=beginning,
-                interest=interest,
-                principal=principal,
+                interest=year_interest,
+                principal=year_principal,
                 debt_service=ds,
-                ending_balance=ending,
+                ending_balance=balance,
                 is_io=is_io,
             )
         )
-        balance = ending
 
     return schedule
