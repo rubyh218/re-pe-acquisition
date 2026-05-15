@@ -52,8 +52,10 @@ HTML), OM extraction, and the multi-tier waterfall live under
 - `underwriting/sensitivity.py` — 2-axis sensitivity tables
 - `underwriting/ic_memo.py` + `ic_memo_html.py` — IC memo generators
 - `underwriting/extract.py` + `om_extractor.py` — OM PDF → Deal YAML
-  (currently multifamily + commercial; hospitality / datacenter /
-  infrastructure on the near-term list)
+  via Claude Sonnet 4.6 (all five engines: multifamily, commercial,
+  hospitality, datacenter wholesale + colo, infrastructure)
+- `market_data/str_manual.py` — manual STR hotel comp-set CSV parser
+  (interim hospitality market-data path while STR API access is TBD)
 
 **Not yet built** (workflow docs exist but no code):
 
