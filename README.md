@@ -143,7 +143,7 @@ CoStar has no public API, so the toolkit uses a hybrid approach:
 
 - **CoStar** (sanctioned manual exports): rent comps, sales comps, supply pipeline. Drop XLSX/PDF into `inbox/costar/{type}/`; adapters parse and cache.
 - **Free APIs**: Census ACS (demographics), BLS QCEW/LAUS (employment), HUD (FMR), FRED (rates/macro).
-- **STR** (hospitality): TBD pending subscription confirmation.
+- **STR** (hospitality): API subscription TBD. **Manual CSV fallback shipped**: drop a monthly comp-set CSV in `inbox/str/<property>-compset.csv` and run `python -m scripts.market_data.str_manual --csv <path>` for RGI / ARI / MPI + T-3/T-6/T-12 windows. Format documented in [`asset_classes/hospitality.md`](asset_classes/hospitality.md#manual-str-comp-set-csv-fallback-while-subscription-is-tbd); reference file in [`examples/example-str-compset.csv`](examples/example-str-compset.csv).
 
 CoStar scraping is a TOS violation — never do it.
 

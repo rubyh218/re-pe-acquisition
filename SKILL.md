@@ -55,7 +55,7 @@ CoStar has no public API. Hybrid approach:
 
 - **CoStar** (sanctioned manual exports): rent comps, sales comps, supply pipeline, tenant rosters. User exports XLSX/PDF from CoStar UI → drops into `inbox/costar/{type}/` → adapter parses and caches.
 - **Free APIs** for everything CoStar resells from public sources: Census ACS (demographics), BLS QCEW/LAUS (employment), HUD (FMR), FRED (rates/macro).
-- **STR data** (CoStar-owned, hospitality): TBD — pending confirmation of user's STR access.
+- **STR data** (CoStar-owned, hospitality): subscription TBD. **Manual CSV fallback shipped**: analysts assemble a monthly comp-set CSV from the STR dashboard (or HVS / CBRE Hotels / JLL Hotels) and run `scripts/market_data/str_manual.py` for RGI / ARI / MPI + T-3/T-6/T-12 trailing windows. See `asset_classes/hospitality.md` for the CSV format and `examples/example-str-compset.csv` for a reference file.
 
 Never scrape CoStar — TOS violation, account ban risk.
 

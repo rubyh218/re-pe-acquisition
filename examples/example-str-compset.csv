@@ -1,0 +1,19 @@
+# Synthetic 12-month STR-style comp-set CSV — a hospitality analyst would
+# manually export numbers like this from STR's dashboard (or from HVS/CBRE
+# Hotels/JLL Hotels published reports) and drop the file here.
+#
+# Property = subject hotel; comp set = 4-6 nearby competitors of similar
+# class. Index = property / comp * 100 (>100 = outperforming).
+month,property_revpar,property_adr,property_occ,compset_revpar,compset_adr,compset_occ,new_supply_pipeline_pct
+2025-04,128.50,168.00,0.765,124.20,165.50,0.751,0.022
+2025-05,141.20,172.50,0.819,135.40,170.00,0.797,0.022
+2025-06,156.30,182.00,0.859,148.60,178.50,0.832,0.025
+2025-07,162.80,185.00,0.880,153.20,180.50,0.849,0.025
+2025-08,154.40,180.50,0.855,146.10,176.50,0.828,0.025
+2025-09,138.90,174.00,0.798,131.50,170.00,0.774,0.028
+2025-10,135.20,172.00,0.786,128.80,168.50,0.764,0.028
+2025-11,118.40,165.00,0.718,114.20,162.50,0.703,0.028
+2025-12,142.50,178.00,0.801,135.20,170.50,0.793,0.030
+2026-01,116.80,162.00,0.721,112.40,160.00,0.703,0.030
+2026-02,121.40,164.50,0.738,116.80,162.00,0.721,0.032
+2026-03,135.90,170.00,0.799,129.70,167.50,0.774,0.032
