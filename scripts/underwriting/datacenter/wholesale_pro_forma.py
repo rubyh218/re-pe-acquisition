@@ -547,7 +547,6 @@ def build_wholesale_pro_forma(deal: DCWholesaleDeal) -> WholesaleProForma:
     stab_yr = stab_idx + 1
     growth_rate = deal.market.market_rent_growth
     roc = compute_roc(
-        yr1_noi=pre_debt[0].noi,
         stab_noi=pre_debt[stab_idx].noi,
         exit_ftm_noi=exit_noi,
         all_in_basis=total_uses,

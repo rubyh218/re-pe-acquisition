@@ -16,7 +16,8 @@ inbox/**/*
 
 # Generated outputs
 out/
-outputs/
+outputs/*
+!outputs/.gitkeep
 *.xlsx
 *.docx
 !templates/**/*.xlsx

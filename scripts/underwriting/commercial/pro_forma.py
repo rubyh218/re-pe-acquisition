@@ -271,7 +271,6 @@ def build_commercial_pro_forma(deal: CommercialDeal) -> CommercialProForma:
     stab_yr = stabilized_idx + 1
     growth_rate = getattr(deal.market, "new_escalation_pct", 0.03)
     roc = compute_roc(
-        yr1_noi=pre_debt[0].noi,
         stab_noi=pre_debt[stabilized_idx].noi,
         exit_ftm_noi=exit_noi,
         all_in_basis=total_uses,

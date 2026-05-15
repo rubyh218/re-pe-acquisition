@@ -33,7 +33,6 @@ class ReturnOnCost:
 
 
 def compute_roc(
-    yr1_noi:      float,    # noqa: ARG001 (kept for symmetry; not currently used)
     stab_noi:     float,
     exit_ftm_noi: float,
     all_in_basis: float,

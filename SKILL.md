@@ -36,17 +36,32 @@ Imported from `vendor/asset-management/scripts/`:
 | `excel_style.py` | Institutional Excel formatting | Pro forma exports, sensitivity tables |
 | `docx_style.py` | Institutional Word formatting | IC memo, market brief, LOI |
 
-## Acquisitions-only scripts (to be built)
+## Acquisitions scripts (shipped)
 
-Will live in `scripts/` once each workflow is designed:
+All five asset-class engines, debt sizing, sensitivity, IC memo (docx +
+HTML), OM extraction, and the multi-tier waterfall live under
+`scripts/underwriting/`. See README's "What's in the box" table and
+`scripts/underwriting/` for the full roster. Key modules:
 
-- `underwriting/pro_forma.py` — 10-yr cash flow build
-- `underwriting/debt_sizing.py` — solve max proceeds across LTV/DSCR/DY constraints
-- `underwriting/sensitivity.py` — 2-axis sensitivity tables, tornado charts
+- `underwriting/pro_forma.py` — multifamily 10-yr cash flow build
+- `underwriting/commercial/`, `hospitality/`, `datacenter/`,
+  `infrastructure/` — per-asset-class engines, lease-by-lease where
+  applicable
+- `underwriting/debt_sizing.py` — solves min of LTV/DSCR/DY
+- `underwriting/waterfall_multi.py` — multi-tier IRR-hurdle waterfall
+- `underwriting/sensitivity.py` — 2-axis sensitivity tables
+- `underwriting/ic_memo.py` + `ic_memo_html.py` — IC memo generators
+- `underwriting/extract.py` + `om_extractor.py` — OM PDF → Deal YAML
+  (currently multifamily + commercial; hospitality / datacenter /
+  infrastructure on the near-term list)
+
+**Not yet built** (workflow docs exist but no code):
+
 - `comps/sales_comps.py`, `comps/rent_comps.py` — comp adjustment models
-- `market_data/adapters/` — CoStar export parsers + Census/BLS/HUD/FRED API clients
+- `market_data/adapters/` — CoStar export parsers + Census / BLS / HUD /
+  FRED API clients
 - `market_data/market_brief.py` — composes 2-page brief
-- `memos/ic_memo.py`, `memos/loi.py` — docx generators
+- `memos/loi.py` — LOI docx generator
 - `screening.py` — OM scoring rubric
 
 ## Market data strategy
