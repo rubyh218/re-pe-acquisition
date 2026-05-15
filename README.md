@@ -131,11 +131,13 @@ python -m unittest discover -s tests -v
 make test
 ```
 
-56 tests covering ROC math, debt sizing + amortization invariants, the
+87 tests covering ROC math, debt sizing + amortization invariants, the
 multi-tier waterfall (hand-derived expected values), pydantic schema
-validation, and one end-to-end fixture per asset-class engine. Tests pin
-the headline numbers each example YAML produces; intentional engine
-changes need the relevant assertion updated in the PR.
+validation, one end-to-end fixture per asset-class engine, the OM
+extractor's deal-type dispatch and example round-trips, and the
+STR comp-set parser. Tests pin the headline numbers each example YAML
+produces; intentional engine changes need the relevant assertion
+updated in the PR.
 
 CI runs the suite on every push and pull request against Python 3.11,
 3.12, and 3.13 (see [`.github/workflows/test.yml`](.github/workflows/test.yml)).
