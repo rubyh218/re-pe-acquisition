@@ -408,7 +408,6 @@ def build_infrastructure_pro_forma(deal: InfrastructureDeal) -> InfraProForma:
 
     stab_yr = stab_idx + 1
     roc = compute_roc(
-        yr1_noi=pre_debt[0].noi,
         stab_noi=pre_debt[stab_idx].noi,
         exit_ftm_noi=exit_noi,
         all_in_basis=total_uses,

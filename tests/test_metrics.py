@@ -15,7 +15,6 @@ class TestComputeROC(unittest.TestCase):
     def test_yr1_stab_no_deflation(self):
         # stab_yr=1 → no deflation; untrended == trended.
         r = compute_roc(
-            yr1_noi=1_000_000,
             stab_noi=1_000_000,
             exit_ftm_noi=1_100_000,
             all_in_basis=20_000_000,
@@ -30,7 +29,6 @@ class TestComputeROC(unittest.TestCase):
         # stab_yr=3 with 3% growth: deflate factor = 1.03^2 = 1.0609.
         stab_noi = 1_060_900   # explicitly trended for 2 years at 3%
         r = compute_roc(
-            yr1_noi=1_000_000,
             stab_noi=stab_noi,
             exit_ftm_noi=1_200_000,
             all_in_basis=20_000_000,
@@ -45,7 +43,7 @@ class TestComputeROC(unittest.TestCase):
     def test_zero_growth_rate_no_deflation(self):
         # growth_rate=0 → deflate = 1.0^N = 1.0 → untrended == trended.
         r = compute_roc(
-            yr1_noi=1_000_000, stab_noi=1_000_000, exit_ftm_noi=1_000_000,
+            stab_noi=1_000_000, exit_ftm_noi=1_000_000,
             all_in_basis=20_000_000, stab_yr=5, growth_rate=0.0,
         )
         self.assertAlmostEqual(r.untrended_stab, r.trended_stab, places=6)
@@ -53,14 +51,14 @@ class TestComputeROC(unittest.TestCase):
     def test_zero_basis_raises(self):
         with self.assertRaises(ValueError):
             compute_roc(
-                yr1_noi=1, stab_noi=1, exit_ftm_noi=1,
+                stab_noi=1, exit_ftm_noi=1,
                 all_in_basis=0, stab_yr=1, growth_rate=0.03,
             )
 
     def test_negative_basis_raises(self):
         with self.assertRaises(ValueError):
             compute_roc(
-                yr1_noi=1, stab_noi=1, exit_ftm_noi=1,
+                stab_noi=1, exit_ftm_noi=1,
                 all_in_basis=-100, stab_yr=1, growth_rate=0.03,
             )
 
@@ -68,7 +66,7 @@ class TestComputeROC(unittest.TestCase):
         # growth_rate = -1.0 would otherwise yield deflate=0. The guard falls
         # back to no deflation (deflate=1).
         r = compute_roc(
-            yr1_noi=1, stab_noi=1_000_000, exit_ftm_noi=1,
+            stab_noi=1_000_000, exit_ftm_noi=1,
             all_in_basis=10_000_000, stab_yr=5, growth_rate=-1.0,
         )
         self.assertTrue(math.isfinite(r.untrended_stab))
@@ -76,7 +74,7 @@ class TestComputeROC(unittest.TestCase):
 
     def test_return_dataclass_carries_inputs(self):
         r = compute_roc(
-            yr1_noi=1, stab_noi=1_000_000, exit_ftm_noi=1_100_000,
+            stab_noi=1_000_000, exit_ftm_noi=1_100_000,
             all_in_basis=20_000_000, stab_yr=3, growth_rate=0.025,
         )
         self.assertIsInstance(r, ReturnOnCost)
@@ -88,7 +86,7 @@ class TestComputeROC(unittest.TestCase):
         # Explicit math: stab_yr=5, growth=0.03 → deflate = 1.03^4 = 1.12551.
         # If stab NOI = 1,000,000, untrended = 1_000_000 / 1.12551 = 888,487.
         r = compute_roc(
-            yr1_noi=1, stab_noi=1_000_000, exit_ftm_noi=1,
+            stab_noi=1_000_000, exit_ftm_noi=1,
             all_in_basis=10_000_000, stab_yr=5, growth_rate=0.03,
         )
         expected_untrended_noi = 1_000_000 / (1.03 ** 4)

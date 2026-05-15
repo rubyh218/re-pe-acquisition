@@ -320,7 +320,6 @@ def build_pro_forma(deal: Deal) -> ProForma:
     avg_rent_growth = sum(rg[:stab_yr]) / stab_yr if rg else 0.03
     # Exit-FTM NOI: use exit_summary.exit_noi which is forward NOI when basis=forward
     roc = compute_roc(
-        yr1_noi=years_with_debt[0].noi,
         stab_noi=years_with_debt[stabilized_idx].noi,
         exit_ftm_noi=exit_noi,
         all_in_basis=all_in_basis,

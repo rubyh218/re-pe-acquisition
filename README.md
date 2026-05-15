@@ -23,7 +23,8 @@ The infrastructure engine handles any blend of three revenue streams — contrac
 
 ## Install
 
-Requires Python 3.11+ (developed on 3.14).
+Requires Python 3.11+. CI runs the test suite on 3.11 / 3.12 / 3.13. Newer
+versions (3.14) work locally but aren't pinned in CI yet.
 
 ```bash
 git clone --recurse-submodules https://github.com/rubyh218/re-pe-acquisition.git
@@ -120,6 +121,8 @@ SKILL.md              Claude Code skill manifest (paired tooling)
 
 ```bash
 python -m unittest discover -s tests -v
+# or just:
+make test
 ```
 
 56 tests covering ROC math, debt sizing + amortization invariants, the
@@ -127,6 +130,18 @@ multi-tier waterfall (hand-derived expected values), pydantic schema
 validation, and one end-to-end fixture per asset-class engine. Tests pin
 the headline numbers each example YAML produces; intentional engine
 changes need the relevant assertion updated in the PR.
+
+CI runs the suite on every push and pull request against Python 3.11,
+3.12, and 3.13 (see [`.github/workflows/test.yml`](.github/workflows/test.yml)).
+
+Common dev tasks via Make:
+
+```bash
+make help     # list targets
+make setup    # create runtime dirs + install deps + init submodule
+make test     # run the test suite
+make smoke    # run all five engines against bundled example YAMLs
+```
 
 ## Conventions
 

@@ -285,7 +285,6 @@ def build_hotel_pro_forma(deal: HotelDeal) -> HotelProForma:
     # --- 3-basis ROC (ADR growth proxies operating growth) ---
     stab_yr = stabilized_idx + 1
     roc = compute_roc(
-        yr1_noi=pre_debt[0].noi,
         stab_noi=pre_debt[stabilized_idx].noi,
         exit_ftm_noi=exit_noi,
         all_in_basis=total_uses,
