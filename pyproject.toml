@@ -1,0 +1,106 @@
+[build-system]
+# This repo is a working skill / toolkit, not a published distribution.
+# We declare PEP 621 metadata so editors, linters, and dependency tools
+# can read the project layout, but we don't ship a wheel.
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "re-pe-acquisition"
+version = "0.1.0"
+description = "Institutional-grade real estate private equity acquisition toolkit"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "rubyh218" }]
+keywords = [
+    "real-estate",
+    "private-equity",
+    "underwriting",
+    "acquisition",
+    "claude-skill",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "openpyxl>=3.1",
+    "python-docx>=1.1",
+    "anthropic>=0.40",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "pip-tools>=7.4",   # for generating requirements.lock.txt
+]
+
+[project.urls]
+Repository = "https://github.com/rubyh218/re-pe-acquisition"
+
+# ---------------------------------------------------------------------------
+# setuptools — find scripts/ and tests/ as importable packages
+# ---------------------------------------------------------------------------
+
+[tool.setuptools.packages.find]
+include = ["scripts*"]
+
+# ---------------------------------------------------------------------------
+# Ruff — linter + formatter + isort replacement
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [
+    "vendor/",
+    "outputs/",
+    "inbox/",
+]
+
+[tool.ruff.lint]
+# Enabled rule sets:
+#   E   — pycodestyle errors
+#   F   — pyflakes
+#   I   — isort (import sorting)
+#   ARG — unused arguments (catches dead params like the old yr1_noi)
+#   UP  — pyupgrade (modernize syntax)
+#   B   — flake8-bugbear (common Python bugs)
+select = ["E", "F", "I", "ARG", "UP", "B"]
+ignore = [
+    "E501",   # line-too-long: handled by formatter, not worth blocking
+    "B008",   # function call in default argument (pydantic Field() pattern)
+]
+
+[tool.ruff.lint.isort]
+# Tell isort about our package layout so it doesn't reorder
+# `import scripts` away from the top of files where it's needed to
+# trigger sys.path setup for vendored modules.
+known-first-party = ["scripts"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use long names and assertion-heavy patterns; loosen accordingly.
+"tests/**" = ["E501", "ARG"]
+# CLI entry points often have unused imports for side-effects.
+"scripts/__init__.py" = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
