@@ -58,3 +58,69 @@ Hotels are operating businesses, not real estate. Underwrite both the real estat
 
 ## Note for v1 launch
 Without confirmed STR access, hospitality comps will lean on HVS/CBRE/JLL public reports, brand-published data, and triangulation from booking platforms. Returns confidence will be lower than other asset classes until STR pipeline is established.
+
+## Manual STR comp-set CSV (fallback while subscription is TBD)
+
+In the absence of a sanctioned STR API hookup, analysts can manually
+assemble a monthly comp-set CSV from the STR web dashboard (or HVS / CBRE
+Hotels / JLL Hotels published tables) and run it through
+`scripts/market_data/str_manual.py`. The parser computes the three
+institutional indices (RGI / ARI / MPI) plus T-3 / T-6 / T-12 trailing
+windows.
+
+### File location
+
+Drop the file under `inbox/str/<property-id>-compset.csv` (gitignored —
+`inbox/` is a per-deal drop zone).
+
+### CSV format
+
+Wide-format, one row per month. Columns (case-insensitive):
+
+| Column | Type | Notes |
+|---|---|---|
+| `month` | `YYYY-MM` or `YYYY-MM-DD` | First-of-month is fine |
+| `property_revpar` | $ | Subject hotel RevPAR |
+| `property_adr` | $ | Subject hotel ADR |
+| `property_occ` | decimal 0..1 | 0.80 = 80% |
+| `compset_revpar` | $ | Comp set average |
+| `compset_adr` | $ | Comp set average |
+| `compset_occ` | decimal 0..1 | Comp set average |
+| `new_supply_pipeline_pct` | decimal (optional) | Annualized submarket supply growth |
+
+Comment lines starting with `#` are skipped, so analysts can annotate.
+
+### Run
+
+```bash
+python -m scripts.market_data.str_manual \
+    --csv inbox/str/hampton-sunbelt-compset.csv
+```
+
+Or from Python:
+
+```python
+from scripts.market_data.str_manual import load_compset, summary
+print(summary(load_compset("inbox/str/hampton-sunbelt-compset.csv")))
+```
+
+Sample output:
+
+```
+STR COMP SET SUMMARY  (latest: 2026-03-01)
+                           Property   Comp Set    Index
+  RevPAR                 $   135.90 $   129.70   104.8
+  ADR                    $   170.00 $   167.50   101.5
+  Occupancy                   79.9%      77.4%   103.2
+
+  Trailing window             RGI      ARI      MPI     Supply
+  T-3  (to 2026-03-01)    104.2    101.4    102.7      3.13%
+  T-6  (to 2026-03-01)    104.5    102.1    102.4      3.00%
+  T-12 (to 2026-03-01)    104.8    102.0    102.7      2.73%
+```
+
+A reference example is bundled at `examples/example-str-compset.csv`. When
+the STR subscription is in place this manual workflow gets replaced by
+a proper adapter under `scripts/market_data/adapters/`; the index
+formulas are the same, so the downstream IC memo / comp-set section
+stays unchanged.
