@@ -1,3 +1,14 @@
+# Loose top-level dependency constraints. The authoritative source is the
+# [project.dependencies] table in pyproject.toml; this file is kept for
+# environments that don't read PEP 621 metadata (older pip, some CI runners).
+#
+# For reproducible installs, generate a lockfile from this:
+#     uv pip compile pyproject.toml -o requirements.lock.txt
+#     # or with pip-tools (pip install pip-tools):
+#     pip-compile pyproject.toml --output-file requirements.lock.txt
+#
+# Then install with `pip install -r requirements.lock.txt` in CI.
+
 pydantic>=2.6
 pyyaml>=6.0
 openpyxl>=3.1
