@@ -78,12 +78,18 @@ Sections: cover page, transaction summary, sources & uses, capital structure, pr
 
 ### OM extraction (PDF → YAML)
 
-Convert an Offering Memorandum PDF to a draft `deal.yaml` using Claude (Sonnet 4.6, native PDF, cached system prompt):
+Convert an Offering Memorandum PDF to a draft `deal.yaml` using Claude (Sonnet 4.6, native PDF, cached system prompt). The extractor dispatches on `--type` to the matching engine schema:
 
 ```bash
 python -m scripts.underwriting.extract path/to/om.pdf --type multifamily
 python -m scripts.underwriting.extract path/to/om.pdf --type commercial -o draft.yaml
+python -m scripts.underwriting.extract path/to/om.pdf --type hospitality
+python -m scripts.underwriting.extract path/to/om.pdf --type datacenter_wholesale
+python -m scripts.underwriting.extract path/to/om.pdf --type datacenter_colo
+python -m scripts.underwriting.extract path/to/om.pdf --type infrastructure
 ```
+
+Each type uses the corresponding Pydantic Deal schema (multifamily → `Deal`, commercial → `CommercialDeal`, hospitality → `HotelDeal`, etc.). The JSON Schema is generated from the model itself so the extractor stays in sync with the engine when fields change.
 
 If extraction validation fails the tool writes a PARTIAL YAML with TODO markers — the analyst fills the gaps before running an engine. Requires `ANTHROPIC_API_KEY` in `.env`.
 
