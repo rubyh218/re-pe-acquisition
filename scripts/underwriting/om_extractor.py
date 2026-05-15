@@ -2,12 +2,31 @@
 om_extractor.py — Extract a Deal YAML from an Offering Memorandum PDF.
 
 Sends the OM PDF natively to Claude Sonnet 4.6, asks for JSON matching the
-Deal schema, validates via Deal.model_validate, writes to YAML.
+target Deal schema (chosen by asset class), validates via pydantic's
+model_validate, writes to YAML.
 
-Fields not present in the OM are filled with `null` (and a TODO comment in the
-output YAML) rather than hallucinated. Broker-stated numbers are preserved
-verbatim; analyst assumptions (exit cap, growth, debt terms when not financed
-deals, etc.) are flagged as TODO.
+Fields not present in the OM are filled with `null` (and a TODO comment in
+the output YAML) rather than hallucinated. Broker-stated numbers are
+preserved verbatim; analyst assumptions (exit cap, growth, debt terms when
+not financed deals, etc.) are flagged as TODO.
+
+DEAL TYPE DISPATCH
+------------------
+The `deal_type` parameter selects:
+  - The pydantic schema used for validation
+  - The asset-class extraction guidance baked into the system prompt
+  - Which JSON Schema is injected for the model to follow
+
+Supported deal_type values:
+  multifamily               -> Deal              (top-level Deal)
+  commercial                -> CommercialDeal    (office/industrial/retail)
+  hospitality               -> HotelDeal
+  datacenter_wholesale      -> DCWholesaleDeal
+  datacenter_colo           -> DCColoDeal
+  infrastructure            -> InfrastructureDeal
+
+The schema is generated from the pydantic model via `model_json_schema()`
+so prompt content never drifts from the actual Deal class fields.
 """
 
 from __future__ import annotations
@@ -16,236 +35,182 @@ import base64
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import anthropic
 import yaml
-from pydantic import ValidationError
 
 from .commercial.models import CommercialDeal
+from .datacenter.models import DCColoDeal, DCWholesaleDeal
+from .hospitality.models import HotelDeal
+from .infrastructure.models import InfrastructureDeal
 from .models import Deal
 
 MODEL = "claude-sonnet-4-6"
 
-_SYSTEM_PROMPT = """You are an institutional acquisitions analyst extracting an underwriting model input from an Offering Memorandum (OM).
 
-OUTPUT CONTRACT
-Return ONLY a single JSON object inside one ```json fence, matching the Deal schema below. No prose outside the fence.
+# ---------------------------------------------------------------------------
+# Deal-type registry
+# ---------------------------------------------------------------------------
 
-EXTRACTION RULES
-1. Use broker-stated numbers verbatim where given (rents, unit counts, SF, T-12 OpEx, price guidance).
-2. For fields the OM does not state, use `null`. NEVER hallucinate. Common nulls in an OM: exit_cap, exit hold_yrs, rent_growth assumptions, debt rate/terms (unless assumable financing is offered), promote/pref structure.
-3. If price is given as a guidance range, use the midpoint and add "_extraction_notes" listing the range.
-4. For unit_mix: collapse the rent roll into floorplan groups (e.g., "1BR/1BA", "2BR/2BA"). `in_place_rent` = current avg in-place rent. `market_rent` = pro-forma / market rent. If only one is given, set the other to the same value and note it.
-5. For OpEx: use T-12 actuals if shown, otherwise broker pro-forma. All per-unit fields are ANNUAL $ per unit.
-6. close_date: use today (analyst assumption) if not stated.
-7. deal_id: snake_case from property name (e.g., "lattice_apartments"). deal_name: title case.
-
-DEAL JSON SCHEMA (Pydantic v2 — types are strict)
-
-{
-  "deal_id": "string (snake_case)",
-  "deal_name": "string",
-  "sponsor": "string (default 'Acquirer')",
-  "property": {
-    "name": "string",
-    "address": "string",
-    "submarket": "string (e.g., 'Phoenix Metro')",
-    "year_built": "int",
-    "asset_class": "multifamily",
-    "unit_mix": [
-      {"name": "1BR/1BA", "count": "int>0", "sf": "int>0", "in_place_rent": "float>0 (monthly $)", "market_rent": "float>0 (monthly $)"}
-    ]
-  },
-  "acquisition": {
-    "purchase_price": "float>0",
-    "closing_costs_pct": "float 0-0.05 (decimal; default 0.015 = 1.5%)",
-    "initial_capex": "float>=0 (day-1 capex separate from value-add)",
-    "day_one_reserves": "float>=0",
-    "close_date": "YYYY-MM-DD"
-  },
-  "revenue": {
-    "other_income_per_unit_mo": "float>=0 (parking/storage/RUBS monthly $/unit)",
-    "rent_growth": "list[float] of length >= hold_yrs+1 (e.g., [0.04, 0.035, 0.03, 0.03, 0.03, 0.03])",
-    "other_income_growth": "float (default 0.03)",
-    "vacancy": "float 0-0.5 (default 0.05)",
-    "bad_debt": "float 0-0.05 (default 0.01)",
-    "concessions_yr1": "float 0-0.10 (default 0)"
-  },
-  "opex": {
-    "payroll_per_unit": "float>=0 ANNUAL $/unit",
-    "rm_per_unit": "float>=0",
-    "marketing_per_unit": "float>=0",
-    "utilities_per_unit": "float>=0 (net of recoveries)",
-    "insurance_per_unit": "float>=0",
-    "other_per_unit": "float>=0",
-    "re_tax": "float>=0 ANNUAL TOTAL $",
-    "re_tax_growth": "float (default 0.03)",
-    "growth": "float (default 0.03)",
-    "mgmt_fee_pct": "float 0-0.10 (default 0.03)"
-  },
-  "capex": {
-    "value_add_per_unit": "float>=0 (interior reno $/unit)",
-    "units_renovated_pct": "list[float] summing to ~1.0, by year (e.g., [0.4, 0.4, 0.2])",
-    "rent_premium_per_unit_mo": "float>=0 (monthly $ uplift on renovated units)",
-    "common_area_capex": "float>=0 (one-time)",
-    "recurring_reserve_per_unit": "float>=0 (default 300 $/unit/yr)"
-  },
-  "debt": {
-    "rate": "float 0-0.30 decimal (0.065 = 6.5%)",
-    "term_yrs": "int>0 (default 10)",
-    "amort_yrs": "int>=0 (0 = full IO; default 30)",
-    "io_period_yrs": "int>=0 (default 0)",
-    "max_ltv": "float 0-0.85 (default 0.65)",
-    "min_dscr": "float 1.0-2.0 (default 1.25)",
-    "min_debt_yield": "float 0-0.20 (default 0.08)",
-    "origination_fee_pct": "float 0-0.03 (default 0.01)",
-    "lender_reserves": "float>=0"
-  },
-  "equity": {
-    "pref_rate": "float 0-0.20 (default 0.08)",
-    "promote_pct": "float 0-0.50 (default 0.20)",
-    "gp_coinvest_pct": "float 0-1.0 (default 0.10)",
-    "acq_fee_pct": "float 0-0.03 (default 0)"
-  },
-  "exit": {
-    "hold_yrs": "int 1-15 (default 5)",
-    "exit_cap": "float 0-0.20 decimal (e.g., 0.055 = 5.5%)",
-    "cost_of_sale_pct": "float 0-0.05 (default 0.015)",
-    "exit_noi_basis": "trailing | forward (default forward)"
-  },
-  "_extraction_notes": {
-    "field_path": "what was missing/assumed/ranged",
-    "...": "..."
-  }
+# Maps the CLI / API deal_type string to the pydantic Deal class.
+_DEAL_TYPES: dict[str, type] = {
+    "multifamily":          Deal,
+    "commercial":           CommercialDeal,
+    "hospitality":          HotelDeal,
+    "datacenter_wholesale": DCWholesaleDeal,
+    "datacenter_colo":      DCColoDeal,
+    "infrastructure":       InfrastructureDeal,
 }
 
-GUIDANCE FOR ANALYST-ASSUMED FIELDS (fill with reasonable institutional defaults if absent):
-- exit.exit_cap: use going-in cap + 50bps as default; if no going-in cap shown, use null.
+
+def supported_deal_types() -> list[str]:
+    """Return the deal types the extractor supports."""
+    return list(_DEAL_TYPES.keys())
+
+
+def _deal_class(deal_type: str) -> type:
+    if deal_type not in _DEAL_TYPES:
+        raise ValueError(
+            f"unsupported deal_type {deal_type!r}; "
+            f"choose from {sorted(_DEAL_TYPES)}"
+        )
+    return _DEAL_TYPES[deal_type]
+
+
+# ---------------------------------------------------------------------------
+# Asset-class-specific extraction guidance
+# ---------------------------------------------------------------------------
+# These are short paragraphs giving the LLM domain-specific conventions for
+# each engine. The bulk of the schema content comes from `model_json_schema()`
+# (see _build_system_prompt below).
+
+_ASSET_CLASS_GUIDANCE: dict[str, str] = {
+    "multifamily": """\
+MULTIFAMILY GUIDANCE
+- unit_mix: collapse the rent roll into floorplan groups (e.g., "1BR/1BA"). `in_place_rent` = current
+  avg in-place; `market_rent` = pro-forma / market. If only one is given, set the other equal and note.
+- OpEx per-unit fields are ANNUAL $ per unit.
 - revenue.rent_growth: if not in OM, use [0.04, 0.035, 0.03, 0.03, 0.03, 0.03] (6 years).
-- debt: if no financing assumptions in OM, use the schema defaults but flag in _extraction_notes.
-- exit.hold_yrs: default 5.
-- equity: use defaults unless OM states otherwise.
+- exit.exit_cap: going-in + 25-50 bps if unstated.
+- capex.units_renovated_pct MUST sum to ~1.0. revenue.rent_growth MUST have >= exit.hold_yrs + 1 entries.
+""",
+    "commercial": """\
+COMMERCIAL (office / industrial / retail) GUIDANCE
+- property.asset_class MUST be one of: office, industrial, retail.
+- rent_roll: extract EVERY tenant. Each row: tenant, sf, base_rent_psf (ANNUAL $/SF), lease_type
+  (NNN/BYS/gross), lease_start, lease_end, escalation_pct.
+- lease_type: triple-net -> "NNN"; modified gross / base-year stop -> "BYS"; full-service gross -> "gross".
+- Default escalations if unstated: office 2.5%, industrial 3.5%, retail 2.0%.
+- percentage rent (retail): only populate pct_rent_rate and sales_psf when the OM explicitly references them.
+""",
+    "hospitality": """\
+HOSPITALITY (HOTEL) GUIDANCE
+- property.keys: total inventory of room keys.
+- brand / flag_type: e.g., "Hampton Inn" / "franchised". service_level one of: economy / midscale /
+  upper_midscale / upscale / upper_upscale / luxury.
+- operating.adr_yr1: Year-1 ADR in dollars. operating.occupancy: list of decimals (e.g., [0.65, 0.70, ...]),
+  length >= hold_yrs+1.
+- USALI structure: rooms_expense_pct of rooms revenue, fb_margin / other_margin as decimal margins.
+- pip_total + pip_displacement_keys + pip_schedule_pct describe the brand-mandated capex program.
+- opex.ffe_reserve_pct: typically 0.04-0.05 of total revenue.
+""",
+    "datacenter_wholesale": """\
+DATACENTER (WHOLESALE) GUIDANCE
+- property.mw_critical + mw_commissioned: total designed and currently-powered MW.
+- property.tier_rating: "Tier I" / "Tier II" / "Tier III" / "Tier IV" (Uptime Institute).
+- contracts: extract EVERY executed wholesale lease. base_rent_kw_mo is $/kW/month on contracted MW.
+- power_pass_through: "full" / "partial" / "none". OpEx per-MW fields scale on mw_critical.
+- pue: power usage effectiveness (1.3-1.6 typical, default 1.40).
+""",
+    "datacenter_colo": """\
+DATACENTER (COLOCATION) GUIDANCE
+- property.cabinet_mix: rows of named cabinet products (count, kw_per_cabinet, in_place_mrr,
+  market_mrr — monthly $/cabinet).
+- xc_per_cabinet: cross-connect count per occupied cabinet. xc_mrr_each: monthly $/xc.
+- contracted_kw: aggregate utility-billed kW basis for power cost.
+- opex.pue_uplift: typically 1.3-1.6.
+""",
+    "infrastructure": """\
+INFRASTRUCTURE (SOLAR / WIND / BESS) GUIDANCE
+- property.generation: nameplate_mw_ac, capacity_factor (0-1), degradation_pct/yr, curtailment_pct,
+  availability_pct, gross_annual_generation_mwh_yr1.
+- revenue_streams: list of PPA / availability / merchant streams. Each carries counterparty (rating
+  optional), term dates, escalation, and stream-specific fields (PPA: price_mwh; availability:
+  annual_payment + capacity_mw + capacity_payment_mw_mo; merchant: price_curve_mwh + terminal_growth).
+- tax_credits: itc_pct of qualified basis (Yr 1 cash) AND/OR ptc_per_mwh + ptc_term_yrs (annual credit on
+  net generation). Most projects use ONE — flag if both are claimed.
+- OpEx is fixed-on-nameplate (fixed_om, insurance, prop_tax, land_lease) + variable on net generation
+  (variable_om).
+- Augmentation capex (BESS swaps, inverter replacement, blade refurb) is LUMPY by year.
+""",
+}
 
-Sum check: capex.units_renovated_pct MUST sum to exactly 1.0 (e.g., [0.5, 0.5] or [0.4, 0.4, 0.2]).
-revenue.rent_growth MUST have at least exit.hold_yrs + 1 entries (forward exit NOI needs Year hold+1).
-"""
 
+# ---------------------------------------------------------------------------
+# System prompt assembly
+# ---------------------------------------------------------------------------
 
-_COMMERCIAL_SYSTEM_PROMPT = """You are an institutional acquisitions analyst extracting an underwriting model input from a commercial real estate Offering Memorandum (OM) -- office, industrial, or retail.
+_BASE_RULES = """You are an institutional acquisitions analyst extracting an underwriting model input from an Offering Memorandum (OM).
 
 OUTPUT CONTRACT
-Return ONLY a single JSON object inside one ```json fence, matching the CommercialDeal schema below. No prose outside the fence.
+Return ONLY a single JSON object inside one ```json fence, matching the Deal schema provided below. No prose outside the fence.
 
-EXTRACTION RULES
-1. Use broker-stated numbers verbatim where given (rent roll, T-12 OpEx, price guidance, market rent).
-2. For fields the OM does not state, use `null`. NEVER hallucinate. Common nulls: exit_cap, hold_yrs, debt terms, market growth assumptions, percentage rent.
-3. property.asset_class MUST be one of: office, industrial, retail.
-4. rent_roll: extract EVERY tenant in the rent roll / stacking plan. Each row must have tenant, sf, base_rent_psf (ANNUAL $/SF), lease_type (NNN/BYS/gross), lease_start, lease_end, escalation_pct.
-5. If escalations are unstated, use 0.025 for office, 0.035 for industrial, 0.02 for retail.
-6. lease_type: triple-net -> "NNN"; modified gross / base-year stop -> "BYS"; full-service gross -> "gross".
-7. close_date: use today (analyst assumption) if not stated.
-8. Market re-leasing assumptions (renewal_prob, downtime, TI, LC, free rent, new lease term): if not in OM, use institutional defaults appropriate to asset class -- but flag in _extraction_notes.
-9. deal_id: snake_case from property name. deal_name: title case.
-10. percentage rent (retail): only populate pct_rent_rate and sales_psf if the OM explicitly references percentage rent terms.
+UNIVERSAL EXTRACTION RULES
+1. Use broker-stated numbers verbatim (rents, unit counts, SF, T-12 OpEx, price guidance, lease terms).
+2. For fields the OM does not state, use `null`. NEVER hallucinate. Common nulls: exit_cap, hold_yrs,
+   rent / market growth assumptions, debt rate / terms (unless assumable financing is offered),
+   promote / pref structure.
+3. If price is given as a guidance range, use the midpoint and add "_extraction_notes" listing the range.
+4. close_date: use today's date if not stated in the OM.
+5. deal_id: snake_case from property name (e.g., "lattice_apartments"). deal_name: title case.
+6. Validation requirements (will fail Pydantic validation if violated):
+   - All `count`, `sf`, `mw_*`, `keys`, `nameplate_mw_ac` fields must be > 0 where present.
+   - Decimal percentage fields are in the range [0, 1] (e.g., 0.05 = 5%); rates are decimals.
+   - List fields with `min_length` annotations must meet the minimum length.
+7. Use the _extraction_notes object at the JSON root to document any analyst assumption, OM gap,
+   or value-range that you collapsed. Keys are field paths (e.g., "exit.exit_cap"); values are
+   short strings.
 
-COMMERCIAL DEAL JSON SCHEMA
-
-{
-  "deal_id": "string (snake_case)",
-  "deal_name": "string",
-  "sponsor": "string (default 'Acquirer')",
-  "property": {
-    "name": "string",
-    "address": "string",
-    "submarket": "string",
-    "year_built": "int",
-    "asset_class": "office | industrial | retail",
-    "total_rba": "int>0 (rentable building area, SF)",
-    "general_vacancy_pct": "float 0-0.30 (default 0.05; 0.02-0.03 for credit-tenant industrial)",
-    "rent_roll": [
-      {
-        "tenant": "string",
-        "suite": "string or null",
-        "sf": "int>0",
-        "base_rent_psf": "float>0 (ANNUAL $/SF)",
-        "lease_type": "NNN | BYS | gross",
-        "lease_start": "YYYY-MM-DD",
-        "lease_end": "YYYY-MM-DD",
-        "escalation_pct": "float 0-0.15 (e.g., 0.025 = 2.5%/yr)",
-        "free_rent_remaining_mo": "int>=0 (default 0)",
-        "pct_rent_rate": "float 0-0.20 or null (retail only; e.g., 0.06)",
-        "sales_psf": "float>=0 or null (retail only; projected sales $/SF)"
-      }
-    ]
-  },
-  "acquisition": {
-    "purchase_price": "float>0",
-    "closing_costs_pct": "float 0-0.05 (default 0.015)",
-    "initial_capex": "float>=0",
-    "day_one_reserves": "float>=0",
-    "close_date": "YYYY-MM-DD"
-  },
-  "market": {
-    "market_rent_psf": "float>0 (ANNUAL $/SF)",
-    "market_rent_growth": "float (default 0.03)",
-    "new_lease_term_yrs": "int 1-20 (default: office 7, industrial 10, retail 7)",
-    "new_escalation_pct": "float 0-0.15",
-    "new_free_rent_mo": "int 0-24",
-    "new_ti_psf": "float>=0",
-    "new_lc_pct": "float 0-0.15 (typically 0.05-0.06)",
-    "downtime_mo": "int 0-36 (typical 6-12 months)",
-    "renewal_lease_term_yrs": "int 1-20",
-    "renewal_escalation_pct": "float 0-0.15",
-    "renewal_free_rent_mo": "int 0-12",
-    "renewal_ti_psf": "float>=0",
-    "renewal_lc_pct": "float 0-0.10",
-    "renewal_prob": "float 0-1 (default 0.65 office, 0.75 industrial credit, 0.70 retail)",
-    "sales_growth": "float (default 0.025; retail only — escalator on tenant sales)"
-  },
-  "opex": {
-    "cam_psf": "float>=0 (ANNUAL $/SF, recoverable)",
-    "re_tax": "float>=0 (ANNUAL TOTAL $)",
-    "insurance_psf": "float>=0",
-    "utilities_psf": "float>=0 (common-area recoverable)",
-    "non_recoverable_psf": "float>=0",
-    "mgmt_fee_pct": "float 0-0.10 (default 0.03; retail 0.04)",
-    "cam_growth": "float (default 0.03)",
-    "re_tax_growth": "float (default 0.03)",
-    "insurance_growth": "float (default 0.04)",
-    "utilities_growth": "float (default 0.03)",
-    "non_recoverable_growth": "float (default 0.03)"
-  },
-  "capex": {
-    "initial_building_capex": "float>=0",
-    "recurring_reserve_psf": "float>=0 (default 0.20; industrial 0.08)"
-  },
-  "debt": {
-    "rate": "float 0-0.30",
-    "term_yrs": "int>0 (default 10)",
-    "amort_yrs": "int>=0 (0 = full IO; default 30)",
-    "io_period_yrs": "int>=0",
-    "max_ltv": "float 0-0.85 (default 0.60 commercial)",
-    "min_dscr": "float 1.0-2.0 (default 1.30)",
-    "min_debt_yield": "float 0-0.20 (default 0.08)",
-    "origination_fee_pct": "float 0-0.03 (default 0.01)",
-    "lender_reserves": "float>=0"
-  },
-  "equity": {
-    "pref_rate": "float 0-0.20 (default 0.08)",
-    "promote_pct": "float 0-0.50 (default 0.20)",
-    "gp_coinvest_pct": "float 0-1.0 (default 0.10)",
-    "acq_fee_pct": "float 0-0.03 (default 0)"
-  },
-  "exit": {
-    "hold_yrs": "int 1-15 (default 5)",
-    "exit_cap": "float 0-0.20 (going-in + 25-50 bps if unstated)",
-    "cost_of_sale_pct": "float 0-0.05 (default 0.015)",
-    "exit_noi_basis": "trailing | forward (default forward)"
-  },
-  "_extraction_notes": {"field_path": "what was missing/assumed"}
-}
+DEFAULTS FOR ANALYST-ASSUMED FIELDS
+- exit.exit_cap: going-in + 25-50 bps if unstated; null if no going-in either.
+- exit.hold_yrs: 5.
+- exit.cost_of_sale_pct: 0.015.
+- exit.exit_noi_basis: "forward".
+- debt: use schema defaults if no financing in OM, but flag in _extraction_notes.
+- equity: use schema defaults unless OM states otherwise.
 """
 
+
+def _schema_summary(deal_class: type) -> str:
+    """Return a compact, human-readable JSON Schema for the deal class.
+
+    Strips noisy keys (`title`, `description` at top level) but keeps field
+    types, defaults, and constraints — enough for the model to produce a
+    valid instance.
+    """
+    schema = deal_class.model_json_schema()
+    # Compact pretty-print so the model can parse the structure quickly.
+    return json.dumps(schema, indent=2)
+
+
+def _build_system_prompt(deal_type: str) -> str:
+    """Assemble the full system prompt for a given deal type."""
+    cls = _deal_class(deal_type)
+    guidance = _ASSET_CLASS_GUIDANCE.get(deal_type, "")
+    schema_json = _schema_summary(cls)
+    return (
+        _BASE_RULES
+        + "\n"
+        + guidance
+        + "\nJSON SCHEMA (Pydantic v2 — types are strict)\n\n"
+        + schema_json
+    )
+
+
+# ---------------------------------------------------------------------------
+# PDF + JSON helpers
+# ---------------------------------------------------------------------------
 
 def _encode_pdf(pdf_path: Path) -> str:
     with pdf_path.open("rb") as f:
@@ -253,7 +218,7 @@ def _encode_pdf(pdf_path: Path) -> str:
 
 
 def _strip_json_fence(text: str) -> str:
-    """Extract JSON from a ```json ... ``` fenced block, falling back to first {...} block."""
+    """Extract JSON from a ```json ... ``` fenced block, falling back to first {...}."""
     fence = re.search(r"```(?:json)?\s*\n(.*?)\n```", text, re.DOTALL)
     if fence:
         return fence.group(1).strip()
@@ -263,22 +228,25 @@ def _strip_json_fence(text: str) -> str:
     raise ValueError("No JSON object found in model response")
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 def extract_om_raw(
     pdf_path: Path,
     client: anthropic.Anthropic | None = None,
     deal_type: str = "multifamily",
 ) -> tuple[dict, dict]:
-    """
-    Run extraction on a PDF and return the raw extracted dict + notes (no validation).
+    """Run extraction on a PDF and return the raw extracted dict + notes (no validation).
 
-    deal_type: 'multifamily' or 'commercial'.
     Returns (raw_json_dict, extraction_notes).
     """
     if client is None:
         client = anthropic.Anthropic()
 
+    _deal_class(deal_type)   # raises on unknown deal_type
     pdf_b64 = _encode_pdf(pdf_path)
-    prompt = _COMMERCIAL_SYSTEM_PROMPT if deal_type == "commercial" else _SYSTEM_PROMPT
+    prompt = _build_system_prompt(deal_type)
 
     response = client.messages.create(
         model=MODEL,
@@ -305,9 +273,8 @@ def extract_om_raw(
                     {
                         "type": "text",
                         "text": (
-                            "Extract the CommercialDeal JSON from this Offering Memorandum. Return ONLY the fenced JSON block."
-                            if deal_type == "commercial"
-                            else "Extract the Deal JSON from this Offering Memorandum. Return ONLY the fenced JSON block."
+                            f"Extract the {deal_type} Deal JSON from this Offering Memorandum. "
+                            "Return ONLY the fenced JSON block."
                         ),
                     },
                 ],
@@ -321,21 +288,28 @@ def extract_om_raw(
     return raw_json, notes
 
 
-def validate_deal(raw_json: dict, deal_type: str = "multifamily") -> Deal | CommercialDeal:
-    """Validate an extracted JSON dict against the appropriate schema."""
-    if deal_type == "commercial":
-        return CommercialDeal.model_validate(raw_json)
-    return Deal.model_validate(raw_json)
+def validate_deal(raw_json: dict, deal_type: str = "multifamily") -> Any:
+    """Validate an extracted JSON dict against the appropriate Deal schema.
+
+    Returns an instance of the matching Deal class
+    (Deal / CommercialDeal / HotelDeal / DCWholesaleDeal / DCColoDeal /
+    InfrastructureDeal).
+    """
+    cls = _deal_class(deal_type)
+    return cls.model_validate(raw_json)
 
 
-def extract_om(pdf_path: Path, client: anthropic.Anthropic | None = None,
-               deal_type: str = "multifamily") -> tuple[Deal | CommercialDeal, dict, dict]:
+def extract_om(
+    pdf_path: Path,
+    client: anthropic.Anthropic | None = None,
+    deal_type: str = "multifamily",
+) -> tuple[Any, dict, dict]:
     """Run extraction and validate. Raises ValidationError on bad schema."""
     raw, notes = extract_om_raw(pdf_path, client, deal_type=deal_type)
     return validate_deal(raw, deal_type), raw, notes
 
 
-def deal_to_yaml(deal: Deal | CommercialDeal, notes: dict | None = None) -> str:
+def deal_to_yaml(deal: Any, notes: dict | None = None) -> str:
     """Serialize a validated Deal back to YAML, with extraction notes as a leading comment block."""
     body = yaml.safe_dump(
         deal.model_dump(mode="json"),

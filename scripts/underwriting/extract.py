@@ -3,12 +3,18 @@ extract.py — CLI to extract a deal.yaml from an OM PDF.
 
 Usage:
     python -m scripts.underwriting.extract path/to/om.pdf [-o out.yaml]
+
+The `--type` flag selects the engine schema to extract against:
+    multifamily | commercial | hospitality |
+    datacenter_wholesale | datacenter_colo | infrastructure
+
+`commercial` covers office / industrial / retail; the asset_class within
+the property block disambiguates them.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -17,7 +23,12 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import ValidationError
 
-from .om_extractor import deal_to_yaml, extract_om_raw, validate_deal
+from .om_extractor import (
+    deal_to_yaml,
+    extract_om_raw,
+    supported_deal_types,
+    validate_deal,
+)
 
 
 def _write_partial_yaml(raw: dict, notes: dict, errors: list, out_path: Path) -> None:
@@ -49,8 +60,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Output YAML path (default: <pdf-stem>.yaml in same dir).",
     )
     parser.add_argument(
-        "-t", "--type", choices=["multifamily", "commercial"], default="multifamily",
-        help="OM type: multifamily (default) or commercial (office/industrial/retail).",
+        "-t", "--type",
+        choices=supported_deal_types(),
+        default="multifamily",
+        help=(
+            "OM type / engine schema (default: multifamily). "
+            "Choices: multifamily, commercial (office/industrial/retail), "
+            "hospitality, datacenter_wholesale, datacenter_colo, infrastructure."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -78,14 +95,31 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"OK: wrote {out_path}")
     print(f"  deal_id:    {deal.deal_id}")
-    if args.type == "commercial":
-        print(f"  property:   {deal.property.name} ({deal.property.total_rba:,} SF, {len(deal.property.rent_roll)} leases)")
-    else:
-        print(f"  property:   {deal.property.name} ({deal.property.unit_count} units)")
+    print(f"  property:   {_property_summary(deal, args.type)}")
     print(f"  price:      ${deal.acquisition.purchase_price:,.0f}")
     if notes:
         print(f"  notes:      {len(notes)} extraction note(s) -- review YAML header")
     return 0
+
+
+def _property_summary(deal, deal_type: str) -> str:
+    """Engine-specific one-liner describing the extracted property."""
+    p = deal.property
+    name = p.name
+    if deal_type == "commercial":
+        return f"{name} ({p.total_rba:,} SF, {len(p.rent_roll)} leases)"
+    if deal_type == "multifamily":
+        return f"{name} ({p.unit_count} units)"
+    if deal_type == "hospitality":
+        return f"{name} ({p.keys} keys, {p.brand} {p.flag_type})"
+    if deal_type == "datacenter_wholesale":
+        return f"{name} ({p.mw_critical} MW critical, {len(p.contracts)} contracts)"
+    if deal_type == "datacenter_colo":
+        total_cabs = sum(c.count for c in p.cabinet_mix)
+        return f"{name} ({total_cabs} cabinets, {len(p.cabinet_mix)} products)"
+    if deal_type == "infrastructure":
+        return f"{name} ({p.generation.nameplate_mw_ac} MW {p.generation.technology})"
+    return f"{name}"
 
 
 if __name__ == "__main__":
