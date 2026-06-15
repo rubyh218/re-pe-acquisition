@@ -2,14 +2,16 @@
 ic_memo.py — Institutional IC memo docx generator.
 
 Produces a standard acquisition IC memo from any engine's underwriting output
-(multifamily / commercial / hospitality). Uses the shared docx_style helpers
-(vendor/asset-management) for consistent institutional appearance.
+(multifamily / commercial / hospitality / datacenter / infrastructure). Uses the
+shared docx_style helpers (vendor/asset-management) for consistent institutional
+appearance.
 
 CLI:
     python -m scripts.underwriting.ic_memo deal.yaml [-o memo.docx]
 
-Auto-detects asset class via `property.asset_class` in the YAML and dispatches
-to the correct engine. Section order:
+Dispatches on an explicit `property.asset_class` in the YAML and raises if it is
+missing (no shape inference — a memo built off the wrong engine is a
+presentation disaster). Section order:
 
     Cover page
     1. Executive Summary

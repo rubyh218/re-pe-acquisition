@@ -431,6 +431,21 @@ class DCColoDeal(_Frozen):
             )
         return self
 
+    @model_validator(mode="after")
+    def _check_pue_consistency(self):
+        # property.pue is the headline shown in the summary; opex.pue_uplift is
+        # the multiplier actually costed in the power line. They are the same
+        # physical quantity (total power / IT power), so a mismatch means the
+        # displayed PUE would not match the PUE the model charges for.
+        if abs(self.property.pue - self.opex.pue_uplift) > 1e-6:
+            raise ValueError(
+                f"property.pue ({self.property.pue}) must equal "
+                f"opex.pue_uplift ({self.opex.pue_uplift}) — they are the same "
+                f"quantity; the displayed PUE would otherwise diverge from the "
+                f"PUE used to cost power."
+            )
+        return self
+
 
 # ===========================================================================
 # Loaders

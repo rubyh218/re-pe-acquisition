@@ -111,8 +111,16 @@ def _parse_month(s: str) -> date:
 
 
 def _parse_float(s: str) -> float:
-    s = (s or "").strip().replace(",", "").replace("$", "").replace("%", "")
-    return float(s) if s else 0.0
+    raw = (s or "").strip()
+    cleaned = raw.replace(",", "").replace("$", "").replace("%", "")
+    if not cleaned:
+        return 0.0
+    val = float(cleaned)
+    # A trailing "%" means the analyst wrote a percentage; normalize to the
+    # documented decimal convention (so "2.5%" -> 0.025, not 2.5 -> 250%).
+    if "%" in raw:
+        val /= 100.0
+    return val
 
 
 def load_compset(path: str | Path) -> list[STRMonth]:

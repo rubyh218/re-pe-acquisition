@@ -134,5 +134,22 @@ class TestSummary(unittest.TestCase):
         self.assertIn("no data", out)
 
 
+class TestParseFloat(unittest.TestCase):
+
+    def test_percent_normalizes_to_decimal(self):
+        from scripts.market_data.str_manual import _parse_float
+        # A trailing % is read as a percentage and normalized to decimal,
+        # matching the documented convention (so "2.5%" is not 250%).
+        self.assertAlmostEqual(_parse_float("2.5%"), 0.025)
+        self.assertAlmostEqual(_parse_float("75%"), 0.75)
+
+    def test_bare_decimal_unchanged(self):
+        from scripts.market_data.str_manual import _parse_float
+        self.assertAlmostEqual(_parse_float("0.025"), 0.025)
+        self.assertAlmostEqual(_parse_float("0.75"), 0.75)
+        self.assertAlmostEqual(_parse_float("$1,200"), 1200.0)
+        self.assertEqual(_parse_float(""), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
