@@ -147,6 +147,38 @@ class TestInfrastructureE2E(unittest.TestCase):
         # Infrastructure cap rates lower than RE typically.
         self.assertGreater(pf.going_in_cap, 0.03)
 
+    def test_ptc_excluded_from_noi_and_exit(self):
+        # Regression: PTC is a finite-term tax credit and must NOT be
+        # capitalized into the exit value via NOI. It belongs in NCF (like
+        # ITC). The solar example still earns PTC in its exit year, so it
+        # exercises the bug condition.
+        pf, _ = _run_infra(_EXAMPLES / "example-solar-ppa.yaml")
+        hold = pf.deal.exit.hold_yrs
+        exit_idx = hold if pf.deal.exit.exit_noi_basis == "forward" else hold - 1
+        exit_yr = pf.years[exit_idx]
+
+        # The condition that made the bug material: PTC is still live at exit.
+        self.assertGreater(exit_yr.ptc_revenue, 0)
+
+        # NOI is operating-only: revenue - opex, with PTC excluded.
+        self.assertAlmostEqual(
+            exit_yr.noi, exit_yr.gross_revenue - exit_yr.total_opex, delta=1.0
+        )
+        self.assertAlmostEqual(pf.exit_summary.exit_noi, exit_yr.noi, delta=1.0)
+        # The capitalized sale price must not embed the PTC.
+        self.assertNotAlmostEqual(
+            pf.exit_summary.exit_noi,
+            exit_yr.noi + exit_yr.ptc_revenue,
+            delta=1.0,
+        )
+
+        # But PTC is still real cash: it flows into unlevered NCF alongside ITC.
+        self.assertAlmostEqual(
+            exit_yr.ncf_unlevered,
+            exit_yr.noi - exit_yr.total_capex + exit_yr.itc_cash + exit_yr.ptc_revenue,
+            delta=1.0,
+        )
+
     def test_wind_runs(self):
         pf, wf = _run_infra(_EXAMPLES / "example-wind.yaml")
         self.assertGreater(pf.sources_uses.equity_check, 0)

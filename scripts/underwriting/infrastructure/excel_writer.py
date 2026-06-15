@@ -228,7 +228,6 @@ def _ws_pro_forma(wb: Workbook, pf: InfraProForma) -> None:
     row("PPA Revenue", lambda y: y.ppa_revenue)
     row("Availability Revenue", lambda y: y.availability_revenue)
     row("Merchant Revenue", lambda y: y.merchant_revenue)
-    row("PTC Cash", lambda y: y.ptc_revenue)
     row("Gross Revenue", lambda y: y.gross_revenue, bold=True)
     r += 1
 
@@ -248,6 +247,7 @@ def _ws_pro_forma(wb: Workbook, pf: InfraProForma) -> None:
     row("Augmentation", lambda y: -y.augmentation)
     row("Recurring Reserve", lambda y: -y.recurring_reserve)
     row("ITC Cash (Yr 1)", lambda y: y.itc_cash)
+    row("PTC Cash", lambda y: y.ptc_revenue)
     row("NCF Unlevered", lambda y: y.ncf_unlevered, bold=True)
     row("Debt Service", lambda y: -y.debt_service)
     row("NCF Levered", lambda y: y.ncf_levered, bold=True)

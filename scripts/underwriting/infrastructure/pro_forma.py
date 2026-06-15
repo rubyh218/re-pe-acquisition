@@ -67,8 +67,8 @@ class InfraYearLine:
     ppa_revenue: float
     availability_revenue: float
     merchant_revenue: float
-    ptc_revenue: float              # production tax credit cash
-    gross_revenue: float            # = sum of streams + PTC (ITC handled separately as Yr-1 cash)
+    ptc_revenue: float              # production tax credit cash (to NCF, not NOI)
+    gross_revenue: float            # operating revenue = PPA + availability + merchant (PTC & ITC are tax-credit cash, not revenue)
     # OpEx
     fixed_om: float
     variable_om: float
@@ -288,7 +288,10 @@ def build_infrastructure_pro_forma(deal: InfrastructureDeal) -> InfraProForma:
                             (1 + deal.tax_credits.ptc_inflation) ** (y - 1)
             ptc_rev = net_mwh * ptc_per_mwh_y
 
-        gross_rev = ppa_rev + avail_rev + merch_rev + ptc_rev
+        # Operating revenue only. PTC is a finite-term production tax credit, not
+        # operating income — it is handled as a tax-credit cash item below (like
+        # ITC) so it never enters NOI or, through NOI, the capitalized exit value.
+        gross_rev = ppa_rev + avail_rev + merch_rev
 
         # --- OpEx ---
         om_g = (1 + deal.opex.om_growth) ** (y - 1)
@@ -315,7 +318,9 @@ def build_infrastructure_pro_forma(deal: InfrastructureDeal) -> InfraProForma:
         # ITC cash (Yr 1 only)
         itc_cash = (deal.tax_credits.itc_pct * deal.tax_credits.itc_basis) if y == 1 else 0.0
 
-        ncf_unlev = noi - total_capex + itc_cash
+        # Both tax credits are real cash to equity but excluded from NOI:
+        # ITC as a Yr-1 lump, PTC over its term.
+        ncf_unlev = noi - total_capex + itc_cash + ptc_rev
         period_end = date(close.year + y, close.month, min(close.day, 28))
 
         pre_debt.append(InfraYearLine(
