@@ -69,7 +69,7 @@ python -m scripts.underwriting.infrastructure examples/example-bess.yaml
 
 ### IC memo → Word
 
-The IC memo generator auto-dispatches by `property.asset_class` (with fallback inference from the YAML shape):
+The IC memo generator dispatches on an explicit `property.asset_class` in the YAML (it errors rather than guessing — a memo built off the wrong engine is a presentation disaster):
 
 ```bash
 python -m scripts.underwriting.ic_memo examples/example-dc-colo.yaml -o outputs/colo-ic-memo.docx

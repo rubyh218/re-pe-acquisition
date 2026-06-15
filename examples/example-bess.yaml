@@ -79,7 +79,6 @@ opex:
   insurance_growth: 0.03
 
 capex:
-  initial_capex: 0
   augmentation_schedule:
     - year: 5
       amount: 12000000

@@ -10,6 +10,7 @@ Defaults reflect institutional norms (see SKILL.md "Conventions").
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -249,10 +250,9 @@ class Deal(_Frozen):
 # Loader
 # ---------------------------------------------------------------------------
 
-def load_deal(path: str | "pathlib.Path") -> Deal:
+def load_deal(path: str | Path) -> Deal:
     """Load a Deal from a YAML file."""
     import yaml
-    from pathlib import Path
 
     with Path(path).open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)

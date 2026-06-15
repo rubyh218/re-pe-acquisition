@@ -213,7 +213,8 @@ class AugmentationEvent(_Frozen):
 
 
 class InfrastructureCapEx(_Frozen):
-    initial_capex: float = Field(default=0, ge=0)            # day-1 construction completion / commissioning
+    # Day-1 capex belongs on `acquisition.initial_capex` (the only field the
+    # engine reads into Sources & Uses, consistent with the other engines).
     augmentation_schedule: list[AugmentationEvent] = Field(default_factory=list)
     recurring_reserve_per_mw_yr: float = Field(default=2000, ge=0)
 

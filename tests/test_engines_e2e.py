@@ -138,6 +138,18 @@ class TestDatacenterE2E(unittest.TestCase):
         pf, wf = _run_dc_colo(_EXAMPLES / "example-dc-colo.yaml")
         self.assertGreater(pf.sources_uses.equity_check, 0)
 
+    def test_colo_pue_mismatch_rejected(self):
+        # property.pue (displayed) and opex.pue_uplift (costed) are the same
+        # quantity; a divergence must be rejected, not silently shown.
+        import yaml
+        from pydantic import ValidationError
+
+        from scripts.underwriting.datacenter.models import DCColoDeal
+        raw = yaml.safe_load((_EXAMPLES / "example-dc-colo.yaml").read_text())
+        raw["opex"]["pue_uplift"] = raw["property"]["pue"] + 0.10
+        with self.assertRaises(ValidationError):
+            DCColoDeal.model_validate(raw)
+
 
 class TestInfrastructureE2E(unittest.TestCase):
 
