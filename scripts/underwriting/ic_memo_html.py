@@ -428,6 +428,140 @@ def _slide_commercial(block: CommercialMemoBlock, slide_num: int) -> str:
 """
 
 
+def _slide_datacenter(block: DCMemoBlock, slide_num: int) -> str:
+    title = (
+        "Tenancy &amp; Power Capacity" if block.kind == "wholesale"
+        else "Cabinet Mix &amp; Lease-Up"
+    )
+    tenancy = "".join(
+        f'<tr><td class="lbl">{_esc(k)}</td><td class="val">{_esc(v)}</td></tr>'
+        for k, v in block.tenancy_rows
+    )
+    detail = ""
+    if block.kind == "wholesale" and block.top_contracts:
+        contracts = "".join(
+            f'<tr><td class="lbl">{_esc(t)}</td><td class="val">{mw:.2f}</td>'
+            f'<td class="val">${rate:.2f}</td><td class="val">{_fmt_dollar(ann)}</td>'
+            f'<td class="val">{_esc(end)}</td><td class="val">{_esc(pt)}</td></tr>'
+            for t, mw, rate, ann, end, pt in block.top_contracts
+        )
+        detail += f"""
+    <div>
+      <div class="col-label">Contract Roster (top by MW)</div>
+      <table class="ledger ledger-wide">
+        <thead><tr><th class="lbl">Tenant</th><th>MW</th><th>$/kW/mo</th><th>Annual Rent</th><th>Lease End</th><th>Pass-Thru</th></tr></thead>
+        <tbody>{contracts}</tbody>
+      </table>
+    </div>"""
+        if block.rollover:
+            roll = "".join(
+                f'<tr><td class="lbl">Yr {yr}</td><td class="val">{mw:.2f}</td>'
+                f'<td class="val">{_fmt_dollar(ip)}</td><td class="val">{_fmt_dollar(mk)}</td>'
+                f'<td class="val {("good" if mtm >= 0 else "weak")}">{_fmt_pct(mtm, 1)}</td></tr>'
+                for yr, mw, ip, mk, mtm in block.rollover
+            )
+            detail += f"""
+    <div>
+      <div class="col-label">Rollover Schedule</div>
+      <table class="ledger ledger-5col">
+        <thead><tr><th class="lbl">Year</th><th>MW Rolling</th><th>In-Place</th><th>Market @ Roll</th><th>MTM</th></tr></thead>
+        <tbody>{roll}</tbody>
+      </table>
+    </div>"""
+    if block.kind == "colo" and block.cabinet_mix:
+        cab = "".join(
+            f'<tr><td class="lbl">{_esc(nm)}</td><td class="val">{c:,}</td>'
+            f'<td class="val">{kw:.1f}</td><td class="val">{tkw:,.0f}</td>'
+            f'<td class="val">{_fmt_dollar(ip)}</td><td class="val">{_fmt_dollar(mk)}</td></tr>'
+            for nm, c, kw, tkw, ip, mk in block.cabinet_mix
+        )
+        detail += f"""
+    <div>
+      <div class="col-label">Cabinet Inventory (in-place vs. market MRR)</div>
+      <table class="ledger ledger-6col">
+        <thead><tr><th class="lbl">Cabinet Type</th><th>Count</th><th>kW/Cab</th><th>Total kW</th><th>In-Place MRR</th><th>Market MRR</th></tr></thead>
+        <tbody>{cab}</tbody>
+      </table>
+    </div>"""
+    return f"""
+<section class="slide slide-text" data-slide="{slide_num}">
+  <header class="slide-head">
+    <span class="slide-eyebrow">II.a</span>
+    <h2 class="slide-title">{title}</h2>
+  </header>
+  <div class="grid-2col">
+    <div>
+      <div class="col-label">{"Capacity &amp; Tenancy" if block.kind == "wholesale" else "Inventory &amp; Lease-Up"}</div>
+      <table class="ledger">{tenancy}</table>
+    </div>
+    {detail}
+  </div>
+</section>
+"""
+
+
+def _slide_infra_generation(block: InfraMemoBlock, slide_num: int) -> str:
+    summary = "".join(
+        f'<tr><td class="lbl">{_esc(k)}</td><td class="val">{_esc(v)}</td></tr>'
+        for k, v in block.summary_rows
+    )
+    streams = "".join(
+        f'<tr><td class="lbl">{_esc(lbl)}</td><td class="val">{_esc(kind)}</td>'
+        f'<td class="val">{_esc(cpty)}</td><td class="val">{_esc(term)}</td>'
+        f'<td class="val">{_esc(rate)}</td><td class="val">{_esc(allot)}</td>'
+        f'<td class="val">{_fmt_dollar(rev)}</td></tr>'
+        for lbl, kind, cpty, term, rate, allot, rev in block.stream_rows
+    )
+    return f"""
+<section class="slide slide-text" data-slide="{slide_num}">
+  <header class="slide-head">
+    <span class="slide-eyebrow">II.a</span>
+    <h2 class="slide-title">Generation &amp; Revenue Streams</h2>
+  </header>
+  <div class="col-label">Generation Profile</div>
+  <table class="ledger ledger-wide">{summary}</table>
+  <div class="col-label">Revenue Stream Roster</div>
+  <table class="ledger ledger-wide">
+    <thead><tr><th class="lbl">Stream</th><th>Type</th><th>Counterparty</th><th>Term</th><th>Headline Rate</th><th>Allotment</th><th>Yr 1 Revenue</th></tr></thead>
+    <tbody>{streams}</tbody>
+  </table>
+</section>
+"""
+
+
+def _slide_infra_mix(block: InfraMemoBlock, slide_num: int) -> str:
+    mix = "".join(
+        f'<tr><td class="lbl">Yr {yr}</td><td class="val">{_fmt_dollar(ppa)}</td>'
+        f'<td class="val">{_fmt_dollar(av)}</td><td class="val">{_fmt_dollar(mc)}</td>'
+        f'<td class="val">{_fmt_dollar(ptc)}</td><td class="val">{_fmt_dollar(tot)}</td>'
+        f'<td class="val">{_fmt_pct(cs, 1)}</td></tr>'
+        for yr, ppa, av, mc, ptc, tot, cs in block.mix_rows
+    )
+    tax = ""
+    if block.tax_credit_rows:
+        tc = "".join(
+            f'<tr><td class="lbl">{_esc(k)}</td><td class="val">{_esc(v)}</td></tr>'
+            for k, v in block.tax_credit_rows
+        )
+        tax = f"""
+  <div class="col-label">Federal Tax Credits (monetized as cash)</div>
+  <table class="ledger">{tc}</table>"""
+    return f"""
+<section class="slide slide-text" data-slide="{slide_num}">
+  <header class="slide-head">
+    <span class="slide-eyebrow">II.a</span>
+    <h2 class="slide-title">Contracted vs. Merchant Mix</h2>
+  </header>
+  <div class="col-label">Revenue by hold year (PTC shown separately — a tax credit, not operating revenue)</div>
+  <table class="ledger ledger-wide">
+    <thead><tr><th class="lbl">Year</th><th>PPA</th><th>Availability</th><th>Merchant</th><th>PTC</th><th>Op. Revenue</th><th>Contracted %</th></tr></thead>
+    <tbody>{mix}</tbody>
+  </table>
+  {tax}
+</section>
+"""
+
+
 # ---------------------------------------------------------------------------
 # Top-level renderer
 # ---------------------------------------------------------------------------
@@ -1134,6 +1268,11 @@ def write_ic_memo_html(
     slides_html.append(_slide_property(payload, n)); n += 1
     if commercial is not None:
         slides_html.append(_slide_commercial(commercial, n)); n += 1
+    if datacenter is not None:
+        slides_html.append(_slide_datacenter(datacenter, n)); n += 1
+    if infrastructure is not None:
+        slides_html.append(_slide_infra_generation(infrastructure, n)); n += 1
+        slides_html.append(_slide_infra_mix(infrastructure, n)); n += 1
     slides_html.append(_slide_sources_uses(payload, n)); n += 1
     slides_html.append(_slide_pro_forma(payload, years, revenue_label, n)); n += 1
     slides_html.append(_slide_returns(payload, n)); n += 1
