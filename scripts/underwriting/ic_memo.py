@@ -336,7 +336,7 @@ def write_ic_memo(
         add_table(
             doc,
             headers=["Year", "PPA", "Availability", "Merchant", "PTC",
-                     "Total", "Contracted %"],
+                     "Op. Revenue", "Contracted %"],
             rows=[
                 [f"Yr {yr}", _fmt_dollar(ppa), _fmt_dollar(av),
                  _fmt_dollar(mc), _fmt_dollar(ptc), _fmt_dollar(tot),
