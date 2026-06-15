@@ -200,6 +200,37 @@ class TestInfrastructureE2E(unittest.TestCase):
         self.assertGreater(pf.sources_uses.equity_check, 0)
 
 
+class TestICMemoHTML(unittest.TestCase):
+    """The HTML deck must render the asset-class slide for every engine —
+    previously datacenter/infrastructure decks silently dropped section 2a."""
+
+    def _render(self, example):
+        import contextlib
+        import io
+        import tempfile
+
+        from scripts.underwriting.ic_memo_html import main
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "deck.html"
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = main([str(_EXAMPLES / example), "-o", str(out)])
+            self.assertEqual(rc, 0)
+            return out.read_text(encoding="utf-8")
+
+    def test_wholesale_has_capacity_slide(self):
+        self.assertIn("Tenancy &amp; Power Capacity",
+                      self._render("example-dc-wholesale.yaml"))
+
+    def test_colo_has_cabinet_slide(self):
+        self.assertIn("Cabinet Mix &amp; Lease-Up",
+                      self._render("example-dc-colo.yaml"))
+
+    def test_infrastructure_has_generation_and_mix_slides(self):
+        html = self._render("example-solar-ppa.yaml")
+        self.assertIn("Generation &amp; Revenue Streams", html)
+        self.assertIn("Contracted vs. Merchant Mix", html)
+
+
 class TestMultiTierWaterfallE2E(unittest.TestCase):
 
     def test_marina_multitier(self):
